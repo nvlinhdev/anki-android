@@ -29,7 +29,8 @@ import java.util.concurrent.TimeUnit
 
 /**
  * Periodically shows a word from [Prefs.wordReminderDeck] as a notification, outside the quiet hours.
- * Due cards are preferred, otherwise a random card of the deck is shown.
+ * A random card is picked from the due cards, else from the cards added in the last [RECENT_DAYS] days,
+ * else from the whole deck. The last [AVOID_LAST] reminders are skipped unless nothing else is left.
  */
 class WordReminderWorker(
     context: Context,
@@ -44,12 +45,19 @@ class WordReminderWorker(
             return Result.success()
         }
         val deckName = Prefs.wordReminderDeck ?: return Result.success()
+        val recent =
+            Prefs.wordReminderRecentCardIds
+                ?.split(",")
+                ?.mapNotNull { it.toLongOrNull() }
+                .orEmpty()
         val reminder =
             withCol {
                 val did = decks.idForName(deckName) ?: return@withCol null
-                val cids = findCards("did:$did is:due").ifEmpty { findCards("did:$did") }
-                if (cids.isEmpty()) return@withCol null
+                val tiers = listOf("is:due", "added:$RECENT_DAYS", "").map { findCards("did:$did $it") }
+                if (tiers.last().isEmpty()) return@withCol null
+                val cids = tiers.firstNotNullOfOrNull { tier -> (tier - recent.toSet()).ifEmpty { null } } ?: tiers.last()
                 val card = getCard(cids.random())
+                Prefs.wordReminderRecentCardIds = (recent + card.id).takeLast(AVOID_LAST).joinToString(",")
                 Triple(
                     did,
                     stripHTMLAndSpecialFields(card.renderOutput(this).questionText).trim(),
@@ -76,6 +84,12 @@ class WordReminderWorker(
     }
 
     companion object {
+        /** Words looked up in the last [RECENT_DAYS] days come right after the due cards */
+        private const val RECENT_DAYS = 3
+
+        /** Number of last reminders that are not repeated if another card is left */
+        private const val AVOID_LAST = 5
+
         /** Whether [hour] is in [start, end); the range may cross midnight. `start == end` disables it. */
         fun inQuietHours(
             hour: Int,

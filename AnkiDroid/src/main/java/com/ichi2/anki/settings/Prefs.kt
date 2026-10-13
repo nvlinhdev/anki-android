@@ -279,6 +279,9 @@ open class PrefsRepository protected constructor(
     val wordReminderQuietStartHour by intPref(R.string.pref_word_reminder_quiet_start_key, 23)
     val wordReminderQuietEndHour by intPref(R.string.pref_word_reminder_quiet_end_key, 7)
 
+    /** Comma-separated ids of the last cards shown by the word reminder */
+    var wordReminderRecentCardIds by stringPref(R.string.pref_word_reminder_recent_key)
+
     // ************************************** Review Reminders ********************************** //
 
     /**

@@ -11,6 +11,7 @@ import androidx.work.testing.TestListenableWorkerBuilder
 import com.ichi2.anki.RobolectricTest
 import com.ichi2.anki.common.time.MockTime
 import com.ichi2.anki.common.time.TimeManager
+import com.ichi2.anki.libanki.CardId
 import com.ichi2.anki.settings.Prefs
 import org.hamcrest.MatcherAssert.assertThat
 import org.hamcrest.Matchers.containsString
@@ -72,6 +73,23 @@ class WordReminderWorkerTest : RobolectricTest() {
         }
 
     @Test
+    fun `prefers recently added words and skips the last reminders`() =
+        runTest {
+            ageCard(addWord("old", "cũ"), days = 10)
+            addWord("new", "mới")
+            Prefs.wordReminderEnabled = true
+            setHour(12)
+
+            runWorker()
+            assertThat(shownWord(), equalTo("new"))
+            runWorker()
+            assertThat(shownWord(), equalTo("old")) // "new" was just shown
+            // only recently shown cards left: repeat one rather than show nothing
+            assertThat(runWorker(), equalTo(Result.success()))
+            assertThat(notifications(), hasSize(1))
+        }
+
+    @Test
     fun `quiet hours across midnight`() {
         assertThat(WordReminderWorker.inQuietHours(23, 23, 7), equalTo(true))
         assertThat(WordReminderWorker.inQuietHours(3, 23, 7), equalTo(true))
@@ -85,10 +103,25 @@ class WordReminderWorkerTest : RobolectricTest() {
     private fun addWord(
         word: String,
         meaning: String,
-    ) {
+    ): CardId {
         val did = addDeck("GoldenDict")
-        col.setDeck(addBasicNote(word, meaning).cardIds(col), did)
+        val cids = addBasicNote(word, meaning).cardIds(col)
+        col.setDeck(cids, did)
+        return cids.single()
     }
+
+    /** Pretends the card was added [days] days ago (`added:` compares card ids). */
+    private fun ageCard(
+        cid: CardId,
+        days: Int,
+    ) = col.db.execute("update cards set id = ? where id = ?", cid - days * 86_400_000L, cid)
+
+    private fun shownWord() =
+        notifications()
+            .single()
+            .extras
+            .getCharSequence(Notification.EXTRA_TITLE)
+            .toString()
 
     private fun setHour(hour: Int) {
         val millis =
