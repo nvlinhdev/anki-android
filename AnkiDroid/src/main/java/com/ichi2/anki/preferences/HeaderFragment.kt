@@ -110,6 +110,7 @@ class HeaderFragment : SettingsFragment() {
                 } else {
                     index(R.xml.preferences_notifications)
                 }
+                index(R.xml.preferences_word_reminder)
 
                 index(R.xml.preferences_appearance)
                 if (!Prefs.isNewStudyScreenEnabled) {
@@ -243,6 +244,7 @@ class HeaderFragment : SettingsFragment() {
                 is ReviewingSettingsFragment -> R.string.pref_reviewing_screen_key
                 is SyncSettingsFragment, is CustomSyncServerSettingsFragment -> R.string.pref_sync_screen_key
                 is NotificationsSettingsFragment -> R.string.pref_notifications_screen_key
+                is WordReminderSettingsFragment -> R.string.pref_word_reminder_screen_key
                 is ScheduleRemindersFragment -> R.string.pref_review_reminders_screen_key
                 is AppearanceSettingsFragment, is CustomButtonsSettingsFragment -> R.string.pref_appearance_screen_key
                 is ControlsSettingsFragment -> R.string.pref_controls_screen_key

@@ -220,6 +220,13 @@
     <string name="review_reminders_next_free_id">reviewRemindersNextFreeId</string>
     <string name="reminder_notifs_request_shown_key">reminderNotifsRequestShown</string>
     <string name="review_reminder_deserialization_errors_key">reviewReminderDeserializationErrors</string>
+    <!-- Word reminder -->
+    <string name="pref_word_reminder_screen_key">wordReminderScreen</string>
+    <string name="pref_word_reminder_enabled_key">wordReminderEnabled</string>
+    <string name="pref_word_reminder_deck_key">wordReminderDeck</string>
+    <string name="pref_word_reminder_interval_key">wordReminderIntervalMinutes</string>
+    <string name="pref_word_reminder_quiet_start_key">wordReminderQuietStartHour</string>
+    <string name="pref_word_reminder_quiet_end_key">wordReminderQuietEndHour</string>
     <!-- Notifications -->
     <string name="notifications_bottom_sheet_below_33">notificationsBottomSheetBelow33</string>
     <string name="notifications_permission_requested_key">notificationsPermissionRequested</string>

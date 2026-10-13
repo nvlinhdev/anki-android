@@ -556,4 +556,13 @@ this formatter is used if the bind only applies to the answer">A: %s</string>
     <string name="pref_custom_path" maxLength="41" comment="Dialog button letting the user type a directory path manually">Custom path</string>
     <string name="pref_enter_custom_path" maxLength="41">Enter custom path</string>
     <string name="pref_directory_not_writable">Directory is not writable</string>
+    <!-- Word reminder -->
+    <string name="pref_word_reminder" maxLength="41" comment="Settings screen that periodically shows a notification with a word from a deck">Word reminder</string>
+    <string name="pref_word_reminder_summary">Periodically show a word from a deck</string>
+    <string name="pref_word_reminder_enabled" maxLength="41">Show word reminders</string>
+    <string name="pref_word_reminder_deck" maxLength="41" comment="Name of the deck to pick words from">Deck</string>
+    <string name="pref_word_reminder_interval" maxLength="41" comment="How often a word reminder is shown, in minutes">Remind every</string>
+    <string name="pref_word_reminder_quiet_start" maxLength="41" comment="Hour of the day when the quiet period (no reminders) starts">Quiet hours start</string>
+    <string name="pref_word_reminder_quiet_end" maxLength="41" comment="Hour of the day when the quiet period (no reminders) ends">Quiet hours end</string>
+    <string name="pref_word_reminder_quiet_summary">No reminders between these hours. Use the same hour for both to disable</string>
 </resources>

@@ -271,6 +271,14 @@ open class PrefsRepository protected constructor(
      */
     var syncNotifsRequestShown by booleanPref(R.string.sync_notifs_request_shown_key, defaultValue = false)
 
+    // ************************************** Word Reminder ************************************* //
+
+    var wordReminderEnabled by booleanPref(R.string.pref_word_reminder_enabled_key, false)
+    val wordReminderDeck by stringPref(R.string.pref_word_reminder_deck_key, "GoldenDict")
+    val wordReminderIntervalMinutes by intPref(R.string.pref_word_reminder_interval_key, 60)
+    val wordReminderQuietStartHour by intPref(R.string.pref_word_reminder_quiet_start_key, 23)
+    val wordReminderQuietEndHour by intPref(R.string.pref_word_reminder_quiet_end_key, 7)
+
     // ************************************** Review Reminders ********************************** //
 
     /**

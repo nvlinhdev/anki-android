@@ -5,4 +5,5 @@ package com.ichi2.anki.worker
 object UniqueWorkNames {
     const val SYNC = "sync"
     const val SYNC_MEDIA = "syncMedia"
+    const val WORD_REMINDER = "wordReminder"
 }

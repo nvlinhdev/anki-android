@@ -311,6 +311,7 @@ fun getFragmentFromXmlRes(
         R.xml.preferences_backup_limits -> BackupLimitsSettingsFragment()
         R.xml.preferences_custom_sync_server -> CustomSyncServerSettingsFragment()
         R.xml.preferences_notifications -> NotificationsSettingsFragment()
+        R.xml.preferences_word_reminder -> WordReminderSettingsFragment()
         R.xml.preferences_appearance -> AppearanceSettingsFragment()
         R.xml.preferences_controls -> ControlsSettingsFragment()
         R.xml.preferences_reviewer_controls -> ControlsSettingsFragment()

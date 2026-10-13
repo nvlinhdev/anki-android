@@ -59,6 +59,15 @@
         app:summaryEntries="@array/notifications_summary_entries">
     </com.ichi2.preferences.HeaderPreference>
 
+    <!-- Word reminder -->
+    <com.ichi2.preferences.HeaderPreference
+        android:fragment="com.ichi2.anki.preferences.WordReminderSettingsFragment"
+        android:key="@string/pref_word_reminder_screen_key"
+        android:title="@string/pref_word_reminder"
+        android:icon="@drawable/ic_add_bell"
+        android:summary="@string/pref_word_reminder_summary">
+    </com.ichi2.preferences.HeaderPreference>
+
     <!-- Review Reminders -->
     <com.ichi2.preferences.HeaderPreference
         android:fragment="com.ichi2.anki.reviewreminders.ScheduleRemindersFragment"
