@@ -8,11 +8,10 @@
         android:defaultValue="false"
         android:key="@string/pref_word_reminder_enabled_key"
         android:title="@string/pref_word_reminder_enabled" />
-    <EditTextPreference
-        android:defaultValue="GoldenDict"
-        android:key="@string/pref_word_reminder_deck_key"
-        android:title="@string/pref_word_reminder_deck"
-        app:useSimpleSummaryProvider="true" />
+    <!-- entries are the collection's decks, set by WordReminderSettingsFragment -->
+    <MultiSelectListPreference
+        android:key="@string/pref_word_reminder_decks_key"
+        android:title="@string/pref_word_reminder_decks" />
     <com.ichi2.preferences.IncrementerNumberRangePreferenceCompat
         android:defaultValue="30"
         android:key="@string/pref_word_reminder_interval_key"

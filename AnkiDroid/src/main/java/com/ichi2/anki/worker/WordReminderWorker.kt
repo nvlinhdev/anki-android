@@ -33,7 +33,7 @@ import java.util.Calendar
 import java.util.concurrent.TimeUnit
 
 /**
- * Periodically picks [Prefs.wordReminderListSize] words from [Prefs.wordReminderDeck] for the
+ * Periodically picks [Prefs.wordReminderListSize] words from [Prefs.wordReminderDecks] for the
  * [WordReminderWidget], and shows the first one as a notification, outside the quiet hours,
  * if there is no widget.
  * Random cards are picked from the due cards, then from the cards added in the last [RECENT_DAYS] days,
@@ -46,16 +46,18 @@ class WordReminderWorker(
 ) : CoroutineWorker(context, parameters) {
     override suspend fun doWork(): Result {
         if (!Prefs.wordReminderEnabled) return Result.success()
-        val deckName = Prefs.wordReminderDeck ?: return Result.success()
+        val deckNames = Prefs.wordReminderDecks
         val previous =
             Prefs.wordReminderRecentCardIds
                 ?.split(",")
                 ?.mapNotNull { it.toLongOrNull() }
                 .orEmpty()
-        val (did, words) =
+        val words =
             withCol {
-                val did = decks.idForName(deckName) ?: return@withCol null
-                val tiers = listOf("is:due", "added:$RECENT_DAYS", "").map { findCards("did:$did $it") }
+                val dids = deckNames.mapNotNull { decks.idForName(it) }
+                if (dids.isEmpty()) return@withCol emptyList()
+                val inDecks = dids.joinToString(" OR ", "(", ")") { "did:$it" }
+                val tiers = listOf("is:due", "added:$RECENT_DAYS", "").map { findCards("$inDecks $it") }
                 val size = Prefs.wordReminderListSize
                 val picked = mutableListOf<CardId>()
                 for (tier in tiers) {
@@ -63,16 +65,16 @@ class WordReminderWorker(
                 }
                 // then the previous list, in turn: a deck smaller than the list must not keep showing the same word first
                 picked += (previous.drop(1) + previous.take(1)).filter { it in tiers.last() }.take(size - picked.size)
-                did to
-                    picked.map { cid ->
-                        val card = getCard(cid)
-                        val word = stripHTMLAndSpecialFields(card.renderOutput(this).questionText).trim()
-                        cid to summarize(word, card.pureAnswer(this))
-                    }
-            } ?: return Result.success()
+                picked.map { cid ->
+                    val card = getCard(cid)
+                    val word = stripHTMLAndSpecialFields(card.renderOutput(this).questionText).trim()
+                    val (title, body) = summarize(word, card.pureAnswer(this))
+                    cid to SavedWord(card.currentDeckId(), title, body)
+                }
+            }
         if (words.isEmpty()) return Result.success()
         Prefs.wordReminderRecentCardIds = words.joinToString(",") { it.first.toString() }
-        saveWords(did, words.map { it.second })
+        saveWords(words.map { it.second })
         // the widget already shows the words
         if (WordReminderWidget.updateAll(applicationContext)) return Result.success()
 
@@ -82,7 +84,7 @@ class WordReminderWorker(
         ) {
             return Result.success()
         }
-        val (title, body) = words.first().second
+        val (did, title, body) = words.first().second
         Timber.i("WordReminderWorker: showing a reminder")
 
         val intent = IntentHandler.getReviewDeckIntent(applicationContext, did)
@@ -162,22 +164,20 @@ class WordReminderWorker(
 
         private fun clip(text: String) = if (text.length <= LINE_MAX_CHARS) text else text.take(LINE_MAX_CHARS - 1).trimEnd() + "…"
 
-        /** The current list: the deck id and (title, body) of each word, or null before the first run */
-        fun savedWords(): Pair<DeckId, List<Pair<String, String>>>? {
-            val json = JSONObject(Prefs.wordReminderWidgetWords ?: return null)
+        /** The current list, empty before the first run */
+        fun savedWords(): List<SavedWord> {
+            val json = JSONObject(Prefs.wordReminderWidgetWords ?: return emptyList())
             val words = json.getJSONArray("words")
-            return json.getLong("deckId") to
-                (0 until words.length()).map { i -> words.getJSONArray(i).let { it.getString(0) to it.getString(1) } }
+            return (0 until words.length()).map { i ->
+                // lists saved before several decks could be picked have one "deckId" for all words
+                words.getJSONArray(i).let { SavedWord(it.optLong(2, json.optLong("deckId")), it.getString(0), it.getString(1)) }
+            }
         }
 
-        private fun saveWords(
-            did: DeckId,
-            words: List<Pair<String, String>>,
-        ) {
+        private fun saveWords(words: List<SavedWord>) {
             Prefs.wordReminderWidgetWords =
                 JSONObject()
-                    .put("deckId", did)
-                    .put("words", JSONArray(words.map { (title, body) -> JSONArray(listOf(title, body)) }))
+                    .put("words", JSONArray(words.map { JSONArray(listOf(it.title, it.body, it.deckId)) }))
                     .toString()
         }
 
@@ -206,3 +206,10 @@ class WordReminderWorker(
         }
     }
 }
+
+/** A word of the current list: the deck to review when it's tapped, and its [WordReminderWorker.summarize]d text */
+data class SavedWord(
+    val deckId: DeckId,
+    val title: String,
+    val body: String,
+)

@@ -224,6 +224,7 @@
     <string name="pref_word_reminder_screen_key">wordReminderScreen</string>
     <string name="pref_word_reminder_enabled_key">wordReminderEnabled</string>
     <string name="pref_word_reminder_deck_key">wordReminderDeck</string>
+    <string name="pref_word_reminder_decks_key">wordReminderDecks</string>
     <string name="pref_word_reminder_interval_key">wordReminderIntervalMinutes</string>
     <string name="pref_word_reminder_quiet_start_key">wordReminderQuietStartHour</string>
     <string name="pref_word_reminder_quiet_end_key">wordReminderQuietEndHour</string>

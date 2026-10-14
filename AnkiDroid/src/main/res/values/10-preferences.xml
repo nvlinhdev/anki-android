@@ -564,7 +564,7 @@ this formatter is used if the bind only applies to the answer">A: %s</string>
     <string name="pref_word_reminder" maxLength="41" comment="Settings screen that periodically shows a notification with a word from a deck">Word reminder</string>
     <string name="pref_word_reminder_summary">Periodically show a word from a deck</string>
     <string name="pref_word_reminder_enabled" maxLength="41">Show word reminders</string>
-    <string name="pref_word_reminder_deck" maxLength="41" comment="Name of the deck to pick words from">Deck</string>
+    <string name="pref_word_reminder_decks" maxLength="41" comment="Decks to pick words from (several can be selected)">Decks</string>
     <string name="pref_word_reminder_interval" maxLength="41" comment="How often a word reminder is shown, in minutes">Remind every</string>
     <string name="pref_word_reminder_quiet_start" maxLength="41" comment="Hour of the day when the quiet period (no reminders) starts">Quiet hours start</string>
     <string name="pref_word_reminder_quiet_end" maxLength="41" comment="Hour of the day when the quiet period (no reminders) ends">Quiet hours end</string>

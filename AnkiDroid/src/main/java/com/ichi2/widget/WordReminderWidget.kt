@@ -19,7 +19,7 @@ import com.ichi2.anki.worker.WordReminderWorker
 /**
  * Shows the words picked by [WordReminderWorker] one after another, switching every
  * [Prefs.wordReminderSlideSeconds]. The launcher does the switching, so it costs nothing
- * while the screen is off. Tapping a word opens the review of the deck.
+ * while the screen is off. Tapping a word opens the review of its deck.
  */
 class WordReminderWidget : AnalyticsWidgetProvider() {
     override fun performUpdate(
@@ -68,7 +68,7 @@ class WordReminderWidget : AnalyticsWidgetProvider() {
 
         fun buildViews(context: Context): RemoteViews {
             val views = RemoteViews(context.packageName, R.layout.widget_word_reminder)
-            val (did, words) = WordReminderWorker.savedWords() ?: (0L to emptyList())
+            val words = WordReminderWorker.savedWords()
             val hasWords = words.isNotEmpty()
             views.setViewVisibility(R.id.word_reminder_empty, if (hasWords) View.GONE else View.VISIBLE)
             views.setViewVisibility(R.id.word_reminder_flipper, if (hasWords) View.VISIBLE else View.GONE)
@@ -79,17 +79,18 @@ class WordReminderWidget : AnalyticsWidgetProvider() {
             }
             if (!hasWords) return views
 
-            val review =
-                PendingIntentCompat.getActivity(
-                    context,
-                    0,
-                    IntentHandler.getReviewDeckIntent(context, did),
-                    PendingIntent.FLAG_UPDATE_CURRENT,
-                    false,
-                )
             // launchers reapply the views to the shown widget: reuse its slides, so it keeps the current one
             views.removeAllViews(R.id.word_reminder_flipper)
-            words.forEachIndexed { i, (title, body) ->
+            words.forEachIndexed { i, (did, title, body) ->
+                // one request code per word: intents differing only by their extras share a PendingIntent
+                val review =
+                    PendingIntentCompat.getActivity(
+                        context,
+                        i,
+                        IntentHandler.getReviewDeckIntent(context, did),
+                        PendingIntent.FLAG_UPDATE_CURRENT,
+                        false,
+                    )
                 val item = RemoteViews(context.packageName, R.layout.widget_word_reminder_item)
                 item.setTextViewText(R.id.word_reminder_title, title)
                 item.setTextViewText(R.id.word_reminder_body, body)

@@ -274,7 +274,13 @@ open class PrefsRepository protected constructor(
     // ************************************** Word Reminder ************************************* //
 
     var wordReminderEnabled by booleanPref(R.string.pref_word_reminder_enabled_key, false)
-    val wordReminderDeck by stringPref(R.string.pref_word_reminder_deck_key, "GoldenDict")
+
+    /** Names of the decks to pick words from. Before several could be picked, one name was kept in `pref_word_reminder_deck_key` */
+    var wordReminderDecks: Set<String>
+        get() =
+            sharedPrefs.getStringSet(key(R.string.pref_word_reminder_decks_key), null)
+                ?: setOf(getString(R.string.pref_word_reminder_deck_key, null) ?: "GoldenDict")
+        set(value) = sharedPrefs.edit { putStringSet(key(R.string.pref_word_reminder_decks_key), value) }
     val wordReminderIntervalMinutes by intPref(R.string.pref_word_reminder_interval_key, 30)
     val wordReminderQuietStartHour by intPref(R.string.pref_word_reminder_quiet_start_key, 23)
     val wordReminderQuietEndHour by intPref(R.string.pref_word_reminder_quiet_end_key, 7)

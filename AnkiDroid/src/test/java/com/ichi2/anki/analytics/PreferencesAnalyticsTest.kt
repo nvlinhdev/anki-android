@@ -94,6 +94,15 @@ class PreferencesAnalyticsTest : RobolectricTest() {
             R.string.pref_allow_dangerous_js_api, // allow_dangerous_js_api
             // Security-sensitive settings (GHSL-2026-085)
             R.string.pref_allow_card_external_launch_key, // allowCardExternalLaunch
+            // Word reminder: not reported
+            R.string.pref_word_reminder_screen_key, // wordReminderScreen
+            R.string.pref_word_reminder_enabled_key, // wordReminderEnabled
+            R.string.pref_word_reminder_decks_key, // wordReminderDecks
+            R.string.pref_word_reminder_interval_key, // wordReminderIntervalMinutes
+            R.string.pref_word_reminder_list_size_key, // wordReminderListSize
+            R.string.pref_word_reminder_slide_seconds_key, // wordReminderSlideSeconds
+            R.string.pref_word_reminder_quiet_start_key, // wordReminderQuietStartHour
+            R.string.pref_word_reminder_quiet_end_key, // wordReminderQuietEndHour
         ).toStringResourceSet()
 
     @Test

@@ -107,8 +107,8 @@ class WordReminderWorkerTest : RobolectricTest() {
             runWorker()
 
             assertThat(notifications(), empty())
-            val (_, words) = WordReminderWorker.savedWords()!!
-            assertThat(words.map { it.first }, equalTo(listOf("new", "old")))
+            val words = WordReminderWorker.savedWords()
+            assertThat(words.map { it.title }, equalTo(listOf("new", "old")))
 
             val views = WordReminderWidget.buildViews(targetContext).apply(targetContext, null)
             val flipper = views.findViewById<ViewFlipper>(R.id.word_reminder_flipper)
@@ -144,7 +144,7 @@ class WordReminderWorkerTest : RobolectricTest() {
             runWorker()
 
             assertThat(notifications(), empty())
-            assertThat(WordReminderWorker.savedWords()!!.second.map { it.first }, equalTo(listOf("apple")))
+            assertThat(WordReminderWorker.savedWords().map { it.title }, equalTo(listOf("apple")))
         }
 
     @Test
@@ -185,6 +185,34 @@ class WordReminderWorkerTest : RobolectricTest() {
 
             assertThat(shown.zipWithNext().all { (a, b) -> a != b }, equalTo(true))
         }
+
+    @Test
+    fun `picks words from the selected decks, each opening its own deck`() =
+        runTest {
+            addWord("one", "một", deck = "English")
+            addWord("two", "hai", deck = "Oxford::Verbs") // a child deck
+            addWord("other", "khác", deck = "Unselected")
+            Prefs.wordReminderEnabled = true
+            Prefs.wordReminderDecks = setOf("English", "Oxford::Verbs", "Missing")
+            setHour(2)
+
+            runWorker()
+
+            val words = WordReminderWorker.savedWords()
+            assertThat(words.map { it.title }.sorted(), equalTo(listOf("one", "two")))
+            for (word in words) {
+                val deck = if (word.title == "one") "English" else "Oxford::Verbs"
+                assertThat(word.deckId, equalTo(col.decks.idForName(deck)))
+            }
+        }
+
+    @Test
+    fun `a single deck set before several could be picked is still used`() {
+        Prefs.putString(R.string.pref_word_reminder_deck_key, "Old deck")
+        assertThat(Prefs.wordReminderDecks, equalTo(setOf("Old deck")))
+        Prefs.wordReminderDecks = setOf("A", "B")
+        assertThat(Prefs.wordReminderDecks, equalTo(setOf("A", "B")))
+    }
 
     @Test
     fun `quiet hours across midnight`() {
@@ -231,8 +259,9 @@ class WordReminderWorkerTest : RobolectricTest() {
     private fun addWord(
         word: String,
         meaning: String,
+        deck: String = "GoldenDict",
     ): CardId {
-        val did = addDeck("GoldenDict")
+        val did = addDeck(deck)
         val cids = addBasicNote(word, meaning).cardIds(col)
         col.setDeck(cids, did)
         return cids.single()
