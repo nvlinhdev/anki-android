@@ -16,6 +16,10 @@
         <item quantity="one">%d min</item>
         <item quantity="other">%d mins</item>
     </plurals>
+    <plurals name="pref_summ_seconds">
+        <item quantity="one">%d sec</item>
+        <item quantity="other">%d secs</item>
+    </plurals>
     <string name="pref_milliseconds">%s ms</string>
     <!-- TODO: move to 20-search-preference so we can contribute upstream (searchpreference_no_results)-->
     <string name="pref_search_no_results">No results</string>
@@ -565,4 +569,10 @@ this formatter is used if the bind only applies to the answer">A: %s</string>
     <string name="pref_word_reminder_quiet_start" maxLength="41" comment="Hour of the day when the quiet period (no reminders) starts">Quiet hours start</string>
     <string name="pref_word_reminder_quiet_end" maxLength="41" comment="Hour of the day when the quiet period (no reminders) ends">Quiet hours end</string>
     <string name="pref_word_reminder_quiet_summary">No reminders between these hours. Use the same hour for both to disable</string>
+    <string name="pref_word_reminder_list_size" maxLength="41" comment="Number of words picked each time and shown one after another by the word reminder home screen widget">Words in the widget</string>
+    <plurals name="pref_word_reminder_words">
+        <item quantity="one">%d word</item>
+        <item quantity="other">%d words</item>
+    </plurals>
+    <string name="pref_word_reminder_slide_seconds" maxLength="41" comment="How long the word reminder widget shows a word before showing the next one">Widget: next word after</string>
 </resources>

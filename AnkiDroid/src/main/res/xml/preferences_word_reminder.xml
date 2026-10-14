@@ -14,12 +14,26 @@
         android:title="@string/pref_word_reminder_deck"
         app:useSimpleSummaryProvider="true" />
     <com.ichi2.preferences.IncrementerNumberRangePreferenceCompat
-        android:defaultValue="60"
+        android:defaultValue="30"
         android:key="@string/pref_word_reminder_interval_key"
         android:title="@string/pref_word_reminder_interval"
         app:max="1440"
         app:min="15"
         app:summaryFormat="@plurals/pref_summ_minutes" />
+    <com.ichi2.preferences.IncrementerNumberRangePreferenceCompat
+        android:defaultValue="5"
+        android:key="@string/pref_word_reminder_list_size_key"
+        android:title="@string/pref_word_reminder_list_size"
+        app:max="20"
+        app:min="1"
+        app:summaryFormat="@plurals/pref_word_reminder_words" />
+    <com.ichi2.preferences.IncrementerNumberRangePreferenceCompat
+        android:defaultValue="15"
+        android:key="@string/pref_word_reminder_slide_seconds_key"
+        android:title="@string/pref_word_reminder_slide_seconds"
+        app:max="60"
+        app:min="2"
+        app:summaryFormat="@plurals/pref_summ_seconds" />
     <PreferenceCategory
         android:title="@string/pref_word_reminder_quiet_summary">
         <com.ichi2.preferences.SliderPreference

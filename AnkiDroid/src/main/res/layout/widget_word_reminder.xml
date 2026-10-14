@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- SPDX-License-Identifier: GPL-3.0-or-later -->
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/word_reminder_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/widget_card_analysis_rounded_background"
+    android:theme="@style/Theme.Material3.DynamicColors.DayNight">
+
+    <TextView
+        android:id="@+id/word_reminder_empty"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:gravity="center"
+        android:padding="16dp"
+        android:text="@string/word_reminder_widget_empty"
+        android:textColor="?android:attr/textColorSecondary" />
+
+    <!-- slides are added from WordReminderWidget -->
+    <ViewFlipper
+        android:id="@+id/word_reminder_flipper"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:layout_above="@id/word_reminder_next"
+        android:autoStart="true"
+        android:flipInterval="15000"
+        android:inAnimation="@android:anim/fade_in"
+        android:outAnimation="@android:anim/fade_out" />
+
+    <ImageButton
+        android:id="@+id/word_reminder_previous"
+        android:layout_width="40dp"
+        android:layout_height="32dp"
+        android:layout_alignParentStart="true"
+        android:layout_alignParentBottom="true"
+        android:background="@android:color/transparent"
+        android:contentDescription="@string/word_reminder_widget_previous"
+        android:src="@drawable/ic_baseline_chevron_left_24" />
+
+    <ImageButton
+        android:id="@+id/word_reminder_next"
+        android:layout_width="40dp"
+        android:layout_height="32dp"
+        android:layout_alignParentEnd="true"
+        android:layout_alignParentBottom="true"
+        android:background="@android:color/transparent"
+        android:contentDescription="@string/word_reminder_widget_next"
+        android:src="@drawable/ic_baseline_chevron_right_24" />
+
+</RelativeLayout>

@@ -6,6 +6,7 @@ import androidx.preference.Preference
 import com.ichi2.anki.R
 import com.ichi2.anki.worker.WordReminderWorker
 import com.ichi2.utils.Permissions
+import com.ichi2.widget.WordReminderWidget
 
 /**
  * Settings of [WordReminderWorker]: periodic notifications showing a word from a deck.
@@ -23,10 +24,15 @@ class WordReminderSettingsFragment : SettingsFragment() {
             R.string.pref_word_reminder_interval_key,
             R.string.pref_word_reminder_quiet_start_key,
             R.string.pref_word_reminder_quiet_end_key,
+            R.string.pref_word_reminder_list_size_key,
+            R.string.pref_word_reminder_slide_seconds_key,
         ).forEach { key ->
             requirePreference<Preference>(key).setOnPreferenceChangeListener { _, _ ->
                 // the listener runs before the value is saved
-                view?.post { WordReminderWorker.schedule(requireContext()) }
+                view?.post {
+                    WordReminderWorker.schedule(requireContext())
+                    WordReminderWidget.updateAll(requireContext())
+                }
                 true
             }
         }

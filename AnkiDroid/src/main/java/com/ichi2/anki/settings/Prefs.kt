@@ -275,12 +275,19 @@ open class PrefsRepository protected constructor(
 
     var wordReminderEnabled by booleanPref(R.string.pref_word_reminder_enabled_key, false)
     val wordReminderDeck by stringPref(R.string.pref_word_reminder_deck_key, "GoldenDict")
-    val wordReminderIntervalMinutes by intPref(R.string.pref_word_reminder_interval_key, 60)
+    val wordReminderIntervalMinutes by intPref(R.string.pref_word_reminder_interval_key, 30)
     val wordReminderQuietStartHour by intPref(R.string.pref_word_reminder_quiet_start_key, 23)
     val wordReminderQuietEndHour by intPref(R.string.pref_word_reminder_quiet_end_key, 7)
 
-    /** Comma-separated ids of the last cards shown by the word reminder */
+    /** Number of words picked each time, shown by the word reminder widget */
+    var wordReminderListSize by intPref(R.string.pref_word_reminder_list_size_key, 5)
+    val wordReminderSlideSeconds by intPref(R.string.pref_word_reminder_slide_seconds_key, 15)
+
+    /** Comma-separated ids of the cards of the current word reminder list */
     var wordReminderRecentCardIds by stringPref(R.string.pref_word_reminder_recent_key)
+
+    /** JSON of the current word reminder list, shown by the widget */
+    var wordReminderWidgetWords by stringPref(R.string.pref_word_reminder_widget_words_key)
 
     // ************************************** Review Reminders ********************************** //
 

@@ -30,6 +30,10 @@
     <string name="widget_add_note_button">Add new AnkiDroid note</string>
     <string name="deck_picker_widget_description" comment="Title of the Deck Picker Widget. Displayed to the user in Android's Widget Selection menu">Deck Picker</string>
     <string name="card_analysis_extra_widget_description">Card Analysis</string>
+    <string name="word_reminder_widget_description" comment="Title of the Word reminder widget, which shows words from a deck one after another. Displayed in Android's widget selection menu">Word reminder</string>
+    <string name="word_reminder_widget_empty" comment="Shown in the Word reminder widget before it has words">Enable Settings › Word reminder to see your words here</string>
+    <string name="word_reminder_widget_previous" comment="Accessibility label of the button showing the previous word">Previous word</string>
+    <string name="word_reminder_widget_next" comment="Accessibility label of the button showing the next word">Next word</string>
 
     <!-- Strings to explain usage in Deck Picker and Card Analysis Widget Configuration screen -->
     <string name="select_decks_title" comment="Title for Deck Selection Dialog">Select decks</string>

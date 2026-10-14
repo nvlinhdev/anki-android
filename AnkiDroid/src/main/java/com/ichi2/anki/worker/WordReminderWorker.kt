@@ -20,50 +20,69 @@ import com.ichi2.anki.R
 import com.ichi2.anki.backend.stripHTMLAndSpecialFields
 import com.ichi2.anki.common.permissions.canPostNotifications
 import com.ichi2.anki.common.time.TimeManager
+import com.ichi2.anki.libanki.CardId
+import com.ichi2.anki.libanki.DeckId
 import com.ichi2.anki.notifications.NotificationId
 import com.ichi2.anki.provider.pureAnswer
 import com.ichi2.anki.settings.Prefs
+import com.ichi2.widget.WordReminderWidget
+import org.json.JSONArray
+import org.json.JSONObject
 import timber.log.Timber
 import java.util.Calendar
 import java.util.concurrent.TimeUnit
 
 /**
- * Periodically shows a word from [Prefs.wordReminderDeck] as a notification, outside the quiet hours.
- * A random card is picked from the due cards, else from the cards added in the last [RECENT_DAYS] days,
- * else from the whole deck. The last [AVOID_LAST] reminders are skipped unless nothing else is left.
- * The notification shows a [summarize]d meaning; the card keeps the whole article.
+ * Periodically picks [Prefs.wordReminderListSize] words from [Prefs.wordReminderDeck] for the
+ * [WordReminderWidget], and shows the first one as a notification, outside the quiet hours,
+ * if there is no widget.
+ * Random cards are picked from the due cards, then from the cards added in the last [RECENT_DAYS] days,
+ * then from the whole deck. Cards of the previous list come last, the first one at the end.
+ * Words show a [summarize]d meaning; the card keeps the whole article.
  */
 class WordReminderWorker(
     context: Context,
     parameters: WorkerParameters,
 ) : CoroutineWorker(context, parameters) {
     override suspend fun doWork(): Result {
-        val hour = TimeManager.time.calendar().get(Calendar.HOUR_OF_DAY)
-        if (!Prefs.wordReminderEnabled ||
-            inQuietHours(hour, Prefs.wordReminderQuietStartHour, Prefs.wordReminderQuietEndHour) ||
-            !canPostNotifications(applicationContext)
-        ) {
-            return Result.success()
-        }
+        if (!Prefs.wordReminderEnabled) return Result.success()
         val deckName = Prefs.wordReminderDeck ?: return Result.success()
-        val recent =
+        val previous =
             Prefs.wordReminderRecentCardIds
                 ?.split(",")
                 ?.mapNotNull { it.toLongOrNull() }
                 .orEmpty()
-        val reminder =
+        val (did, words) =
             withCol {
                 val did = decks.idForName(deckName) ?: return@withCol null
                 val tiers = listOf("is:due", "added:$RECENT_DAYS", "").map { findCards("did:$did $it") }
-                if (tiers.last().isEmpty()) return@withCol null
-                val cids = tiers.firstNotNullOfOrNull { tier -> (tier - recent.toSet()).ifEmpty { null } } ?: tiers.last()
-                val card = getCard(cids.random())
-                Prefs.wordReminderRecentCardIds = (recent + card.id).takeLast(AVOID_LAST).joinToString(",")
-                val word = stripHTMLAndSpecialFields(card.renderOutput(this).questionText).trim()
-                did to summarize(word, card.pureAnswer(this))
+                val size = Prefs.wordReminderListSize
+                val picked = mutableListOf<CardId>()
+                for (tier in tiers) {
+                    picked += tier.filter { it !in previous && it !in picked }.shuffled().take(size - picked.size)
+                }
+                // then the previous list, in turn: a deck smaller than the list must not keep showing the same word first
+                picked += (previous.drop(1) + previous.take(1)).filter { it in tiers.last() }.take(size - picked.size)
+                did to
+                    picked.map { cid ->
+                        val card = getCard(cid)
+                        val word = stripHTMLAndSpecialFields(card.renderOutput(this).questionText).trim()
+                        cid to summarize(word, card.pureAnswer(this))
+                    }
             } ?: return Result.success()
-        val (did, text) = reminder
-        val (title, body) = text
+        if (words.isEmpty()) return Result.success()
+        Prefs.wordReminderRecentCardIds = words.joinToString(",") { it.first.toString() }
+        saveWords(did, words.map { it.second })
+        // the widget already shows the words
+        if (WordReminderWidget.updateAll(applicationContext)) return Result.success()
+
+        val hour = TimeManager.time.calendar().get(Calendar.HOUR_OF_DAY)
+        if (inQuietHours(hour, Prefs.wordReminderQuietStartHour, Prefs.wordReminderQuietEndHour) ||
+            !canPostNotifications(applicationContext)
+        ) {
+            return Result.success()
+        }
+        val (title, body) = words.first().second
         Timber.i("WordReminderWorker: showing a reminder")
 
         val intent = IntentHandler.getReviewDeckIntent(applicationContext, did)
@@ -85,9 +104,6 @@ class WordReminderWorker(
     companion object {
         /** Words looked up in the last [RECENT_DAYS] days come right after the due cards */
         private const val RECENT_DAYS = 3
-
-        /** Number of last reminders that are not repeated if another card is left */
-        private const val AVOID_LAST = 5
 
         /** Dictionaries list the most common senses first */
         private const val SENSES_PER_POS = 2
@@ -145,6 +161,25 @@ class WordReminderWorker(
         }
 
         private fun clip(text: String) = if (text.length <= LINE_MAX_CHARS) text else text.take(LINE_MAX_CHARS - 1).trimEnd() + "…"
+
+        /** The current list: the deck id and (title, body) of each word, or null before the first run */
+        fun savedWords(): Pair<DeckId, List<Pair<String, String>>>? {
+            val json = JSONObject(Prefs.wordReminderWidgetWords ?: return null)
+            val words = json.getJSONArray("words")
+            return json.getLong("deckId") to
+                (0 until words.length()).map { i -> words.getJSONArray(i).let { it.getString(0) to it.getString(1) } }
+        }
+
+        private fun saveWords(
+            did: DeckId,
+            words: List<Pair<String, String>>,
+        ) {
+            Prefs.wordReminderWidgetWords =
+                JSONObject()
+                    .put("deckId", did)
+                    .put("words", JSONArray(words.map { (title, body) -> JSONArray(listOf(title, body)) }))
+                    .toString()
+        }
 
         /** Whether [hour] is in [start, end); the range may cross midnight. `start == end` disables it. */
         fun inQuietHours(

@@ -4,15 +4,21 @@ package com.ichi2.anki.worker
 
 import android.app.Notification
 import android.app.NotificationManager
+import android.appwidget.AppWidgetManager
+import android.content.Intent
+import android.widget.TextView
+import android.widget.ViewFlipper
 import androidx.core.content.getSystemService
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.work.ListenableWorker.Result
 import androidx.work.testing.TestListenableWorkerBuilder
+import com.ichi2.anki.R
 import com.ichi2.anki.RobolectricTest
 import com.ichi2.anki.common.time.MockTime
 import com.ichi2.anki.common.time.TimeManager
 import com.ichi2.anki.libanki.CardId
 import com.ichi2.anki.settings.Prefs
+import com.ichi2.widget.WordReminderWidget
 import org.hamcrest.MatcherAssert.assertThat
 import org.hamcrest.Matchers.containsString
 import org.hamcrest.Matchers.empty
@@ -78,6 +84,7 @@ class WordReminderWorkerTest : RobolectricTest() {
             ageCard(addWord("old", "cũ"), days = 10)
             addWord("new", "mới")
             Prefs.wordReminderEnabled = true
+            Prefs.wordReminderListSize = 1
             setHour(12)
 
             runWorker()
@@ -87,6 +94,96 @@ class WordReminderWorkerTest : RobolectricTest() {
             // only recently shown cards left: repeat one rather than show nothing
             assertThat(runWorker(), equalTo(Result.success()))
             assertThat(notifications(), hasSize(1))
+        }
+
+    @Test
+    fun `picks a list of distinct words for the widget, also in quiet hours`() =
+        runTest {
+            ageCard(addWord("old", "cũ"), days = 10)
+            addWord("new", "mới")
+            Prefs.wordReminderEnabled = true
+            setHour(2)
+
+            runWorker()
+
+            assertThat(notifications(), empty())
+            val (_, words) = WordReminderWorker.savedWords()!!
+            assertThat(words.map { it.first }, equalTo(listOf("new", "old")))
+
+            val views = WordReminderWidget.buildViews(targetContext).apply(targetContext, null)
+            val flipper = views.findViewById<ViewFlipper>(R.id.word_reminder_flipper)
+            assertThat(flipper.childCount, equalTo(2))
+            assertThat(
+                flipper
+                    .getChildAt(0)
+                    .findViewById<TextView>(R.id.word_reminder_title)
+                    .text
+                    .toString(),
+                equalTo("new"),
+            )
+            assertThat(
+                flipper
+                    .getChildAt(1)
+                    .findViewById<TextView>(R.id.word_reminder_counter)
+                    .text
+                    .toString(),
+                equalTo("2/2"),
+            )
+        }
+
+    @Test
+    fun `no notification while a widget shows the words`() =
+        runTest {
+            addWord("apple", "quả táo")
+            Prefs.wordReminderEnabled = true
+            setHour(12)
+            shadowOf(
+                AppWidgetManager.getInstance(targetContext),
+            ).createWidget(WordReminderWidget::class.java, R.layout.widget_word_reminder)
+
+            runWorker()
+
+            assertThat(notifications(), empty())
+            assertThat(WordReminderWorker.savedWords()!!.second.map { it.first }, equalTo(listOf("apple")))
+        }
+
+    @Test
+    fun `the widget buttons switch words, also after the words are updated`() =
+        runTest {
+            addWord("one", "một")
+            addWord("two", "hai")
+            Prefs.wordReminderEnabled = true
+            setHour(12)
+            val widgets = shadowOf(AppWidgetManager.getInstance(targetContext))
+            val id = widgets.createWidget(WordReminderWidget::class.java, R.layout.widget_word_reminder)
+
+            // the launcher reapplies the views to the widget it shows, as Robolectric does
+            fun flipper() = widgets.getViewFor(id).findViewById<ViewFlipper>(R.id.word_reminder_flipper)
+
+            fun press(action: String) = WordReminderWidget().onReceive(targetContext, Intent(action))
+
+            runWorker()
+            press(WordReminderWidget.ACTION_NEXT)
+            assertThat(flipper().displayedChild, equalTo(1))
+            runWorker()
+            assertThat(flipper().childCount, equalTo(2))
+            assertThat(flipper().displayedChild, equalTo(1))
+            press(WordReminderWidget.ACTION_PREVIOUS)
+            assertThat(flipper().displayedChild, equalTo(0))
+            assertThat(flipper().childCount, equalTo(2))
+        }
+
+    @Test
+    fun `a deck smaller than the list shows its words in turn`() =
+        runTest {
+            addWord("one", "một")
+            addWord("two", "hai")
+            Prefs.wordReminderEnabled = true
+            setHour(12)
+
+            val shown = (1..4).map { runWorker().let { shownWord() } }
+
+            assertThat(shown.zipWithNext().all { (a, b) -> a != b }, equalTo(true))
         }
 
     @Test

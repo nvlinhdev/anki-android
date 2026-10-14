@@ -228,6 +228,9 @@
     <string name="pref_word_reminder_quiet_start_key">wordReminderQuietStartHour</string>
     <string name="pref_word_reminder_quiet_end_key">wordReminderQuietEndHour</string>
     <string name="pref_word_reminder_recent_key">wordReminderRecentCardIds</string>
+    <string name="pref_word_reminder_list_size_key">wordReminderListSize</string>
+    <string name="pref_word_reminder_slide_seconds_key">wordReminderSlideSeconds</string>
+    <string name="pref_word_reminder_widget_words_key">wordReminderWidgetWords</string>
     <!-- Notifications -->
     <string name="notifications_bottom_sheet_below_33">notificationsBottomSheetBelow33</string>
     <string name="notifications_permission_requested_key">notificationsPermissionRequested</string>

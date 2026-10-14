@@ -554,6 +554,21 @@
                 />
         </receiver>
 
+        <!-- Slides through the words picked by WordReminderWorker -->
+        <receiver
+            android:name="com.ichi2.widget.WordReminderWidget"
+            android:label="@string/word_reminder_widget_description"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_provider_word_reminder"
+                />
+        </receiver>
+
         <!-- A widget that displays a few decks's name and number of cards to review on the Android home screen.
              The way to add it depends on the phone. It usually consists in a long press on the screen, followed by finding a "widget" button"-->
         <receiver
