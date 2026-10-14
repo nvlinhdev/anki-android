@@ -31,6 +31,7 @@ import java.util.concurrent.TimeUnit
  * Periodically shows a word from [Prefs.wordReminderDeck] as a notification, outside the quiet hours.
  * A random card is picked from the due cards, else from the cards added in the last [RECENT_DAYS] days,
  * else from the whole deck. The last [AVOID_LAST] reminders are skipped unless nothing else is left.
+ * The notification shows a [summarize]d meaning; the card keeps the whole article.
  */
 class WordReminderWorker(
     context: Context,
@@ -58,13 +59,11 @@ class WordReminderWorker(
                 val cids = tiers.firstNotNullOfOrNull { tier -> (tier - recent.toSet()).ifEmpty { null } } ?: tiers.last()
                 val card = getCard(cids.random())
                 Prefs.wordReminderRecentCardIds = (recent + card.id).takeLast(AVOID_LAST).joinToString(",")
-                Triple(
-                    did,
-                    stripHTMLAndSpecialFields(card.renderOutput(this).questionText).trim(),
-                    stripHTMLAndSpecialFields(card.pureAnswer(this)).trim(),
-                )
+                val word = stripHTMLAndSpecialFields(card.renderOutput(this).questionText).trim()
+                did to summarize(word, card.pureAnswer(this))
             } ?: return Result.success()
-        val (did, word, meaning) = reminder
+        val (did, text) = reminder
+        val (title, body) = text
         Timber.i("WordReminderWorker: showing a reminder")
 
         val intent = IntentHandler.getReviewDeckIntent(applicationContext, did)
@@ -73,9 +72,9 @@ class WordReminderWorker(
                 .Builder(applicationContext, NotificationChannel.REVIEW_REMINDERS.id)
                 .setCategory(NotificationCompat.CATEGORY_REMINDER)
                 .setSmallIcon(R.drawable.ic_star_notify)
-                .setContentTitle(word)
-                .setContentText(meaning)
-                .setStyle(NotificationCompat.BigTextStyle().bigText(meaning))
+                .setContentTitle(title)
+                .setContentText(body)
+                .setStyle(NotificationCompat.BigTextStyle().bigText(body))
                 .setContentIntent(PendingIntentCompat.getActivity(applicationContext, 0, intent, PendingIntent.FLAG_UPDATE_CURRENT, false))
                 .setAutoCancel(true)
                 .build()
@@ -89,6 +88,63 @@ class WordReminderWorker(
 
         /** Number of last reminders that are not repeated if another card is left */
         private const val AVOID_LAST = 5
+
+        /** Dictionaries list the most common senses first */
+        private const val SENSES_PER_POS = 2
+
+        /** Parts of speech shown in a reminder */
+        private const val MAX_POS = 3
+
+        private const val LINE_MAX_CHARS = 100
+
+        private val LINE_BREAK = Regex("""<br\s*/?>|</div>|</p>|\n""", RegexOption.IGNORE_CASE)
+
+        // \s doesn't match the no-break spaces dictionaries put after "1."
+        private val SENSE = Regex("""\d+\.[\s ]*(.+)""")
+        private val USAGE_PATTERN = Regex("""^\([^)]*\)[\s ]*""")
+        private val IPA = Regex("/[^/]+/")
+
+        /**
+         * Short reminder text for a dictionary article, without examples: (title, body).
+         * The title is the word and its first IPA; the body has one line per part of speech
+         * ("■ danh từ") with its first senses ("1. ..."). Articles without that structure
+         * fall back to their first line that is not the word itself.
+         * Same rules as `summarize` in the anki-word-reminder desktop add-on.
+         */
+        fun summarize(
+            word: String,
+            html: String,
+        ): Pair<String, String> {
+            val lines =
+                html
+                    .split(LINE_BREAK)
+                    .map { stripHTMLAndSpecialFields(it).replace("‍", "").trim() } // zero-width joiners in IPA
+                    .filter { it.isNotEmpty() }
+            var ipa: String? = null
+            val sections = mutableListOf<Pair<String, MutableList<String>>>() // (part of speech, senses)
+            for (line in lines) {
+                val sense = SENSE.matchEntire(line)?.groupValues?.get(1)
+                when {
+                    line.startsWith("■") -> sections += line.drop(1).substringBefore("—").trim() to mutableListOf()
+                    sense != null -> {
+                        if (sections.isEmpty()) sections += "" to mutableListOf()
+                        val senses = sections.last().second
+                        // drop a leading usage pattern like "(to conflict with something)"
+                        if (senses.size < SENSES_PER_POS) senses += sense.replace(USAGE_PATTERN, "")
+                    }
+                    sections.isEmpty() && ipa == null -> ipa = IPA.find(line)?.value
+                }
+            }
+            val body =
+                sections
+                    .filter { it.second.isNotEmpty() }
+                    .take(MAX_POS)
+                    .map { (pos, senses) -> clip(if (pos.isEmpty()) senses.joinToString(" · ") else "$pos: ${senses.joinToString(" · ")}") }
+                    .ifEmpty { lines.filterNot { it.equals(word, ignoreCase = true) }.take(1).map(::clip) }
+            return (if (ipa != null) "$word $ipa" else word) to body.joinToString("\n")
+        }
+
+        private fun clip(text: String) = if (text.length <= LINE_MAX_CHARS) text else text.take(LINE_MAX_CHARS - 1).trimEnd() + "…"
 
         /** Whether [hour] is in [start, end); the range may cross midnight. `start == end` disables it. */
         fun inQuietHours(

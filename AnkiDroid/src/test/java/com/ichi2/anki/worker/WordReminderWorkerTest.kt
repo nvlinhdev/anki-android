@@ -100,6 +100,37 @@ class WordReminderWorkerTest : RobolectricTest() {
         assertThat(WordReminderWorker.inQuietHours(5, 5, 5), equalTo(false))
     }
 
+    @Test
+    fun `summarizes a dictionary article without examples`() {
+        // Back field as GoldenDict stores it (innerText of the first article, "\n" -> "<br>")
+        val conflict =
+            "conflict<br>con·flict — [UK] /ˈ‍kɒnflɪkt/ [US] /ˈ‍kɑːnflɪkt/<br><br>CEFR: B2" +
+                "<br>■ danh từ<br>1.  sự xung đột; cuộc xung đột" +
+                "<br>‣  soldiers involved in armed conflict ↔ những người lính tham dự vào một cuộc xung đột vũ trang" +
+                "<br>≈  CÙNG CHỦ ĐỀ<br>‣  aggression — arms — army — attack" +
+                "<br>■ động từ — /kənˈflɪkt/<br>1.  (to conflict with something) đối lập; trái ngược; mâu thuẫn" +
+                "<br>‣  their thoughts conflict with ours ↔ suy nghĩ của họ trái ngược với suy nghĩ của chúng tôi" +
+                "<br>■ đồng nghĩa/liên quan<br>•  conflicted — conflicting — confliction" +
+                "<br>■ nguồn gốc từ<br>•  late Middle English: from Latin conflict- ‘struck together, fought’"
+        assertThat(
+            WordReminderWorker.summarize("conflict", conflict),
+            equalTo("conflict /ˈkɒnflɪkt/" to "danh từ: sự xung đột; cuộc xung đột\nđộng từ: đối lập; trái ngược; mâu thuẫn"),
+        )
+        // the first senses are the most common ones
+        val restored =
+            "restored<br>re·store — [UK] /rɪˈ‍stɔː(r)/<br>■ động từ<br>1.  hoàn lại, trả lại" +
+                "<br>‣  to restore something to someone ↔ trả lại vật gì cho ai<br>2.  phục hồi lại<br>3.  phục (chức)"
+        assertThat(
+            WordReminderWorker.summarize("restored", restored),
+            equalTo("restored /rɪˈstɔː(r)/" to "động từ: hoàn lại, trả lại · phục hồi lại"),
+        )
+        // other dictionaries: first line that is not the word itself
+        assertThat(WordReminderWorker.summarize("apple", "<b>apple</b><br>quả táo<br>more"), equalTo("apple" to "quả táo"))
+        assertThat(WordReminderWorker.summarize("x", ""), equalTo("x" to ""))
+        val long = WordReminderWorker.summarize("w", "■ noun<br>1. " + "a".repeat(300)).second
+        assertThat(long.length <= 100 && long.endsWith("…"), equalTo(true))
+    }
+
     private fun addWord(
         word: String,
         meaning: String,
