@@ -2,19 +2,31 @@
 
 package com.ichi2.widget
 
+import android.app.NotificationManager
 import android.app.PendingIntent
 import android.appwidget.AppWidgetManager
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.os.Build
+import android.speech.tts.TextToSpeech
+import android.speech.tts.UtteranceProgressListener
 import android.view.View
 import android.widget.RemoteViews
 import androidx.core.app.PendingIntentCompat
+import androidx.core.content.getSystemService
+import androidx.work.OneTimeWorkRequestBuilder
+import androidx.work.WorkManager
+import com.ichi2.anki.CollectionManager.withCol
 import com.ichi2.anki.IntentHandler
 import com.ichi2.anki.R
+import com.ichi2.anki.common.coroutines.applicationScope
+import com.ichi2.anki.libanki.CardId
+import com.ichi2.anki.notifications.NotificationId
 import com.ichi2.anki.settings.Prefs
 import com.ichi2.anki.worker.WordReminderWorker
+import kotlinx.coroutines.launch
+import java.util.Locale
 
 /**
  * Shows the words picked by [WordReminderWorker] one after another, switching every
@@ -35,6 +47,25 @@ class WordReminderWidget : AnalyticsWidgetProvider() {
         intent: Intent,
     ) {
         super.onReceive(context, intent)
+        if (intent.action == ACTION_KNOWN) {
+            val pendingResult = goAsync()
+            applicationScope.launch {
+                try {
+                    markKnown(context, intent.getLongExtra(EXTRA_CARD_ID, 0))
+                } finally {
+                    pendingResult?.finish()
+                }
+            }
+            return
+        }
+        if (intent.action == ACTION_NOTIFY_NEXT) {
+            WordReminderWorker.notify(context, intent.getIntExtra(EXTRA_INDEX, 0))
+            return
+        }
+        if (intent.action == ACTION_SPEAK) {
+            speak(context, intent.getStringExtra(EXTRA_WORD).orEmpty(), goAsync())
+            return
+        }
         val views = buildViews(context)
         // the replacement, setDisplayedChild, needs the current slide, which only the launcher knows.
         // A full update: the system merges a partial one into the last views, keeping both showNext and showPrevious
@@ -51,6 +82,68 @@ class WordReminderWidget : AnalyticsWidgetProvider() {
     companion object {
         const val ACTION_PREVIOUS = "com.ichi2.widget.WordReminderWidget.PREVIOUS"
         const val ACTION_NEXT = "com.ichi2.widget.WordReminderWidget.NEXT"
+        const val ACTION_KNOWN = "com.ichi2.widget.WordReminderWidget.KNOWN"
+        const val EXTRA_CARD_ID = "cardId"
+        const val ACTION_SPEAK = "com.ichi2.widget.WordReminderWidget.SPEAK"
+        const val EXTRA_WORD = "word"
+        const val ACTION_NOTIFY_NEXT = "com.ichi2.widget.WordReminderWidget.NOTIFY_NEXT"
+        const val EXTRA_INDEX = "index"
+
+        /** Reads [word] aloud with the system voice, then releases the engine and [pendingResult] */
+        private fun speak(
+            context: Context,
+            word: String,
+            pendingResult: PendingResult?,
+        ) {
+            lateinit var tts: TextToSpeech
+            val done: () -> Unit = {
+                tts.shutdown()
+                pendingResult?.finish()
+            }
+            tts =
+                TextToSpeech(context.applicationContext) { status ->
+                    if (status != TextToSpeech.SUCCESS) return@TextToSpeech done()
+                    // ponytail: English voice only, like the desktop add-on
+                    tts.language = Locale.US
+                    tts.setOnUtteranceProgressListener(
+                        object : UtteranceProgressListener() {
+                            override fun onStart(utteranceId: String?) {}
+
+                            override fun onDone(utteranceId: String?) = done()
+
+                            @Deprecated("Deprecated in Java")
+                            override fun onError(utteranceId: String?) = done()
+                        },
+                    )
+                    if (tts.speak(word, TextToSpeech.QUEUE_FLUSH, null, word) != TextToSpeech.SUCCESS) done()
+                }
+        }
+
+        /** Suspends the card of a word the user knows, so it isn't reminded any more, and removes it from the list */
+        suspend fun markKnown(
+            context: Context,
+            cardId: CardId,
+        ) {
+            withCol { sched.suspendCards(listOf(cardId)) }
+            WordReminderWorker.removeWord(cardId)
+            context.getSystemService<NotificationManager>()?.cancel(NotificationId.WORD_REMINDER)
+            if (updateAll(context) && WordReminderWorker.savedWords().isEmpty()) {
+                // the last word of the widget: pick a new list
+                WorkManager.getInstance(context).enqueue(OneTimeWorkRequestBuilder<WordReminderWorker>().build())
+            }
+        }
+
+        /** Marks the word of [cardId] as known; one request code per card, as the intents only differ by their extras */
+        fun knownIntent(
+            context: Context,
+            cardId: CardId,
+        ) = PendingIntentCompat.getBroadcast(
+            context,
+            cardId.toInt(),
+            Intent(context, WordReminderWidget::class.java).setAction(ACTION_KNOWN).putExtra(EXTRA_CARD_ID, cardId),
+            PendingIntent.FLAG_UPDATE_CURRENT,
+            false,
+        )
 
         /** Shows the current words in all the widgets. Returns whether there is one */
         fun updateAll(context: Context): Boolean {
@@ -81,7 +174,8 @@ class WordReminderWidget : AnalyticsWidgetProvider() {
 
             // launchers reapply the views to the shown widget: reuse its slides, so it keeps the current one
             views.removeAllViews(R.id.word_reminder_flipper)
-            words.forEachIndexed { i, (did, title, body) ->
+            words.forEachIndexed { i, word ->
+                val (did, title, body) = word
                 // one request code per word: intents differing only by their extras share a PendingIntent
                 val review =
                     PendingIntentCompat.getActivity(
@@ -96,6 +190,14 @@ class WordReminderWidget : AnalyticsWidgetProvider() {
                 item.setTextViewText(R.id.word_reminder_body, body)
                 item.setTextViewText(R.id.word_reminder_counter, "${i + 1}/${words.size}")
                 item.setOnClickPendingIntent(R.id.word_reminder_item, review)
+                item.setOnClickPendingIntent(R.id.word_reminder_known, knownIntent(context, word.cardId))
+                val speak = Intent(context, WordReminderWidget::class.java).setAction(ACTION_SPEAK)
+                // the title is the word and its IPA
+                speak.putExtra(EXTRA_WORD, title.substringBefore(" /"))
+                item.setOnClickPendingIntent(
+                    R.id.word_reminder_speak,
+                    PendingIntentCompat.getBroadcast(context, i, speak, PendingIntent.FLAG_UPDATE_CURRENT, false),
+                )
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                     views.addStableView(R.id.word_reminder_flipper, item, i)
                 } else {

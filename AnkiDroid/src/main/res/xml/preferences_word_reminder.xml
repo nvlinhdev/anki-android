@@ -35,19 +35,14 @@
         app:summaryFormat="@plurals/pref_summ_seconds" />
     <PreferenceCategory
         android:title="@string/pref_word_reminder_quiet_summary">
-        <com.ichi2.preferences.SliderPreference
+        <!-- open a time picker, set by WordReminderSettingsFragment -->
+        <Preference
             android:defaultValue="23"
             android:key="@string/pref_word_reminder_quiet_start_key"
-            android:title="@string/pref_word_reminder_quiet_start"
-            android:valueFrom="0"
-            android:valueTo="23"
-            app:displayValue="true" />
-        <com.ichi2.preferences.SliderPreference
+            android:title="@string/pref_word_reminder_quiet_start" />
+        <Preference
             android:defaultValue="7"
             android:key="@string/pref_word_reminder_quiet_end_key"
-            android:title="@string/pref_word_reminder_quiet_end"
-            android:valueFrom="0"
-            android:valueTo="23"
-            app:displayValue="true" />
+            android:title="@string/pref_word_reminder_quiet_end" />
     </PreferenceCategory>
 </PreferenceScreen>

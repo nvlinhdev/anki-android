@@ -228,6 +228,8 @@
     <string name="pref_word_reminder_interval_key">wordReminderIntervalMinutes</string>
     <string name="pref_word_reminder_quiet_start_key">wordReminderQuietStartHour</string>
     <string name="pref_word_reminder_quiet_end_key">wordReminderQuietEndHour</string>
+    <string name="pref_word_reminder_quiet_start_minute_key">wordReminderQuietStartMinute</string>
+    <string name="pref_word_reminder_quiet_end_minute_key">wordReminderQuietEndMinute</string>
     <string name="pref_word_reminder_recent_key">wordReminderRecentCardIds</string>
     <string name="pref_word_reminder_list_size_key">wordReminderListSize</string>
     <string name="pref_word_reminder_slide_seconds_key">wordReminderSlideSeconds</string>

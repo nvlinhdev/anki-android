@@ -35,6 +35,24 @@
             android:textColor="?android:attr/textColorSecondary"
             android:textSize="12sp"
             tools:text="1/5" />
+
+        <ImageButton
+            android:id="@+id/word_reminder_speak"
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:layout_marginStart="4dp"
+            android:background="@android:color/transparent"
+            android:contentDescription="@string/word_reminder_speak"
+            android:src="@drawable/ic_volume_up" />
+
+        <ImageButton
+            android:id="@+id/word_reminder_known"
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:layout_marginStart="4dp"
+            android:background="@android:color/transparent"
+            android:contentDescription="@string/word_reminder_known"
+            android:src="@drawable/ic_done" />
     </LinearLayout>
 
     <TextView

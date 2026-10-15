@@ -5,6 +5,7 @@ package com.ichi2.anki.worker
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
+import android.content.Intent
 import androidx.core.app.NotificationCompat
 import androidx.core.app.PendingIntentCompat
 import androidx.core.content.getSystemService
@@ -22,6 +23,7 @@ import com.ichi2.anki.common.permissions.canPostNotifications
 import com.ichi2.anki.common.time.TimeManager
 import com.ichi2.anki.libanki.CardId
 import com.ichi2.anki.libanki.DeckId
+import com.ichi2.anki.libanki.SortOrder
 import com.ichi2.anki.notifications.NotificationId
 import com.ichi2.anki.provider.pureAnswer
 import com.ichi2.anki.settings.Prefs
@@ -56,12 +58,18 @@ class WordReminderWorker(
             withCol {
                 val dids = deckNames.mapNotNull { decks.idForName(it) }
                 if (dids.isEmpty()) return@withCol emptyList()
-                val inDecks = dids.joinToString(" OR ", "(", ")") { "did:$it" }
-                val tiers = listOf("is:due", "added:$RECENT_DAYS", "").map { findCards("$inDecks $it") }
+                // suspended cards are the words marked as known
+                val inDecks = dids.joinToString(" OR ", "(", ")") { "did:$it" } + " -is:suspended"
+                // due cards most likely forgotten first (lowest FSRS retrievability), the others at random
+                val byRetrievability = SortOrder.BuiltinColumnSortKind(getBrowserColumn("retrievability")!!, reverse = false)
+                val tiers =
+                    listOf("is:due" to byRetrievability, "added:$RECENT_DAYS" to SortOrder.NoOrdering, "" to SortOrder.NoOrdering)
+                        .map { (search, order) -> findCards("$inDecks $search", order) }
                 val size = Prefs.wordReminderListSize
                 val picked = mutableListOf<CardId>()
-                for (tier in tiers) {
-                    picked += tier.filter { it !in previous && it !in picked }.shuffled().take(size - picked.size)
+                tiers.forEachIndexed { i, tier ->
+                    val pool = tier.filter { it !in previous && it !in picked }
+                    picked += (if (i == 0) pool else pool.shuffled()).take(size - picked.size)
                 }
                 // then the previous list, in turn: a deck smaller than the list must not keep showing the same word first
                 picked += (previous.drop(1) + previous.take(1)).filter { it in tiers.last() }.take(size - picked.size)
@@ -69,7 +77,7 @@ class WordReminderWorker(
                     val card = getCard(cid)
                     val word = stripHTMLAndSpecialFields(card.renderOutput(this).questionText).trim()
                     val (title, body) = summarize(word, card.pureAnswer(this))
-                    cid to SavedWord(card.currentDeckId(), title, body)
+                    cid to SavedWord(card.currentDeckId(), title, body, cid)
                 }
             }
         if (words.isEmpty()) return Result.success()
@@ -78,28 +86,16 @@ class WordReminderWorker(
         // the widget already shows the words
         if (WordReminderWidget.updateAll(applicationContext)) return Result.success()
 
-        val hour = TimeManager.time.calendar().get(Calendar.HOUR_OF_DAY)
-        if (inQuietHours(hour, Prefs.wordReminderQuietStartHour, Prefs.wordReminderQuietEndHour) ||
+        val now = TimeManager.time.calendar().let { it.get(Calendar.HOUR_OF_DAY) * 60 + it.get(Calendar.MINUTE) }
+        val quietStart = Prefs.wordReminderQuietStartHour * 60 + Prefs.wordReminderQuietStartMinute
+        val quietEnd = Prefs.wordReminderQuietEndHour * 60 + Prefs.wordReminderQuietEndMinute
+        if (inQuietHours(now, quietStart, quietEnd) ||
             !canPostNotifications(applicationContext)
         ) {
             return Result.success()
         }
-        val (did, title, body) = words.first().second
         Timber.i("WordReminderWorker: showing a reminder")
-
-        val intent = IntentHandler.getReviewDeckIntent(applicationContext, did)
-        val notification =
-            NotificationCompat
-                .Builder(applicationContext, NotificationChannel.REVIEW_REMINDERS.id)
-                .setCategory(NotificationCompat.CATEGORY_REMINDER)
-                .setSmallIcon(R.drawable.ic_star_notify)
-                .setContentTitle(title)
-                .setContentText(body)
-                .setStyle(NotificationCompat.BigTextStyle().bigText(body))
-                .setContentIntent(PendingIntentCompat.getActivity(applicationContext, 0, intent, PendingIntent.FLAG_UPDATE_CURRENT, false))
-                .setAutoCancel(true)
-                .build()
-        applicationContext.getSystemService<NotificationManager>()?.notify(NotificationId.WORD_REMINDER, notification)
+        notify(applicationContext, 0)
         return Result.success()
     }
 
@@ -170,26 +166,70 @@ class WordReminderWorker(
             val words = json.getJSONArray("words")
             return (0 until words.length()).map { i ->
                 // lists saved before several decks could be picked have one "deckId" for all words
-                words.getJSONArray(i).let { SavedWord(it.optLong(2, json.optLong("deckId")), it.getString(0), it.getString(1)) }
+                words.getJSONArray(i).let {
+                    SavedWord(it.optLong(2, json.optLong("deckId")), it.getString(0), it.getString(1), it.optLong(3))
+                }
             }
         }
+
+        /** Shows the word at [index] of the current list (wrapping around) as a notification */
+        fun notify(
+            context: Context,
+            index: Int,
+        ) {
+            val words = savedWords()
+            if (words.isEmpty()) return
+            val (did, title, body, cardId) = words[index % words.size]
+            val intent = IntentHandler.getReviewDeckIntent(context, did)
+            val builder =
+                NotificationCompat
+                    .Builder(context, NotificationChannel.REVIEW_REMINDERS.id)
+                    .setCategory(NotificationCompat.CATEGORY_REMINDER)
+                    .setSmallIcon(R.drawable.ic_star_notify)
+                    .setContentTitle(title)
+                    .setContentText(body)
+                    .setStyle(NotificationCompat.BigTextStyle().bigText(body))
+                    .setContentIntent(PendingIntentCompat.getActivity(context, 0, intent, PendingIntent.FLAG_UPDATE_CURRENT, false))
+                    .setAutoCancel(true)
+                    .setOnlyAlertOnce(true) // "Next word" replaces it silently
+                    .addAction(
+                        R.drawable.ic_done,
+                        context.getString(R.string.word_reminder_known),
+                        WordReminderWidget.knownIntent(context, cardId),
+                    )
+            if (words.size > 1) {
+                val next =
+                    Intent(context, WordReminderWidget::class.java)
+                        .setAction(WordReminderWidget.ACTION_NOTIFY_NEXT)
+                        .putExtra(WordReminderWidget.EXTRA_INDEX, index + 1)
+                builder.addAction(
+                    R.drawable.ic_baseline_chevron_right_24,
+                    context.getString(R.string.word_reminder_widget_next),
+                    PendingIntentCompat.getBroadcast(context, 0, next, PendingIntent.FLAG_UPDATE_CURRENT, false),
+                )
+            }
+            context.getSystemService<NotificationManager>()?.notify(NotificationId.WORD_REMINDER, builder.build())
+        }
+
+        /** Removes the word of [cardId] from the current list */
+        fun removeWord(cardId: CardId) = saveWords(savedWords().filter { it.cardId != cardId })
 
         private fun saveWords(words: List<SavedWord>) {
             Prefs.wordReminderWidgetWords =
                 JSONObject()
-                    .put("words", JSONArray(words.map { JSONArray(listOf(it.title, it.body, it.deckId)) }))
+                    .put("words", JSONArray(words.map { JSONArray(listOf(it.title, it.body, it.deckId, it.cardId)) }))
                     .toString()
         }
 
-        /** Whether [hour] is in [start, end); the range may cross midnight. `start == end` disables it. */
+        /** Whether [time] is in [start, end), in the same unit (hours, minutes of the day); the range may cross midnight. `start == end` disables it. */
         fun inQuietHours(
-            hour: Int,
+            time: Int,
             start: Int,
             end: Int,
         ) = when {
             start == end -> false
-            start < end -> hour in start until end
-            else -> hour >= start || hour < end
+            start < end -> time in start until end
+            else -> time >= start || time < end
         }
 
         /** Applies the current preferences: (re)schedules the periodic work, or cancels it. */
@@ -212,4 +252,6 @@ data class SavedWord(
     val deckId: DeckId,
     val title: String,
     val body: String,
+    /** 0 in lists saved before words could be marked as known */
+    val cardId: CardId = 0,
 )

@@ -2,10 +2,13 @@
 
 package com.ichi2.anki.worker
 
+import android.app.Application
 import android.app.Notification
 import android.app.NotificationManager
 import android.appwidget.AppWidgetManager
 import android.content.Intent
+import android.speech.tts.TextToSpeech
+import android.view.View
 import android.widget.TextView
 import android.widget.ViewFlipper
 import androidx.core.content.getSystemService
@@ -17,6 +20,8 @@ import com.ichi2.anki.RobolectricTest
 import com.ichi2.anki.common.time.MockTime
 import com.ichi2.anki.common.time.TimeManager
 import com.ichi2.anki.libanki.CardId
+import com.ichi2.anki.libanki.CardType
+import com.ichi2.anki.libanki.QueueType
 import com.ichi2.anki.settings.Prefs
 import com.ichi2.widget.WordReminderWidget
 import org.hamcrest.MatcherAssert.assertThat
@@ -27,6 +32,7 @@ import org.hamcrest.Matchers.hasSize
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.Shadows.shadowOf
+import org.robolectric.shadows.ShadowTextToSpeech
 import java.util.Calendar
 
 @RunWith(AndroidJUnit4::class)
@@ -215,6 +221,130 @@ class WordReminderWorkerTest : RobolectricTest() {
     }
 
     @Test
+    fun `prefers the due words most likely forgotten`() =
+        runTest {
+            val strong = addWord("strong", "mạnh")
+            val weak = addWord("weak", "yếu")
+            reviewCard(strong, stability = 100f)
+            reviewCard(weak, stability = 2f)
+            Prefs.wordReminderEnabled = true
+            Prefs.wordReminderListSize = 2
+            setHour(12)
+
+            repeat(3) {
+                Prefs.wordReminderRecentCardIds = null
+                runWorker()
+                assertThat(WordReminderWorker.savedWords().map { it.title }, equalTo(listOf("weak", "strong")))
+            }
+        }
+
+    @Test
+    fun `the widget reads the word aloud`() =
+        runTest {
+            addWord("apple", "/ˈæp.əl/<br>quả táo")
+            Prefs.wordReminderEnabled = true
+            setHour(12)
+            runWorker()
+
+            val views = WordReminderWidget.buildViews(targetContext).apply(targetContext, null)
+            views.findViewById<View>(R.id.word_reminder_speak).performClick()
+            val clicked = shadowOf(targetContext as Application).broadcastIntents.last()
+            assertThat(clicked.action, equalTo(WordReminderWidget.ACTION_SPEAK))
+            WordReminderWidget().onReceive(targetContext, clicked)
+            val tts = shadowOf(ShadowTextToSpeech.getLastTextToSpeechInstance())
+            tts.onInitListener.onInit(TextToSpeech.SUCCESS)
+
+            assertThat(tts.lastSpokenText, equalTo("apple"))
+        }
+
+    @Test
+    fun `the notification shows the next words of the list`() =
+        runTest {
+            addWord("apple", "quả táo")
+            addWord("pear", "quả lê")
+            Prefs.wordReminderEnabled = true
+            Prefs.wordReminderListSize = 2
+            setHour(12)
+            runWorker()
+            val words = WordReminderWorker.savedWords().map { it.title }
+
+            repeat(3) { i ->
+                assertThat(shownWord(), equalTo(words[i % 2]))
+                val next =
+                    notifications().single().actions.single {
+                        it.title ==
+                            targetContext.getString(
+                                R.string.word_reminder_widget_next,
+                            )
+                    }
+                WordReminderWidget().onReceive(targetContext, shadowOf(next.actionIntent).savedIntent)
+            }
+        }
+
+    @Test
+    fun `quiet hours have a minute precision`() =
+        runTest {
+            addWord("apple", "quả táo")
+            Prefs.wordReminderEnabled = true
+            Prefs.wordReminderQuietStartHour = 12
+            Prefs.wordReminderQuietStartMinute = 30
+            Prefs.wordReminderQuietEndHour = 13
+            Prefs.wordReminderQuietEndMinute = 0
+
+            setHour(12, minute = 15)
+            runWorker()
+            assertThat(notifications(), hasSize(1))
+
+            targetContext.getSystemService<NotificationManager>()!!.cancelAll()
+            setHour(12, minute = 45)
+            runWorker()
+            assertThat(notifications(), empty())
+        }
+
+    @Test
+    fun `known words are not reminded`() =
+        runTest {
+            val known = addWord("known", "đã thuộc")
+            addWord("other", "khác")
+            col.sched.suspendCards(listOf(known))
+            Prefs.wordReminderEnabled = true
+            setHour(12)
+
+            repeat(3) {
+                runWorker()
+                assertThat(WordReminderWorker.savedWords().map { it.title }, equalTo(listOf("other")))
+            }
+        }
+
+    @Test
+    fun `the notification and the widget mark a word as known`() =
+        runTest {
+            addWord("apple", "quả táo")
+            addWord("pear", "quả lê")
+            Prefs.wordReminderEnabled = true
+            Prefs.wordReminderListSize = 1
+            setHour(12)
+            runWorker()
+            val shown = WordReminderWorker.savedWords().single()
+
+            val action = notifications().single().actions.single()
+            val intent = shadowOf(action.actionIntent).savedIntent
+            assertThat(intent.action, equalTo(WordReminderWidget.ACTION_KNOWN))
+            assertThat(intent.getLongExtra(WordReminderWidget.EXTRA_CARD_ID, 0), equalTo(shown.cardId))
+            // the widget has the same button on each word
+            val views = WordReminderWidget.buildViews(targetContext).apply(targetContext, null)
+            views.findViewById<View>(R.id.word_reminder_known).performClick()
+            val clicked = shadowOf(targetContext as Application).broadcastIntents.last()
+            assertThat(clicked.getLongExtra(WordReminderWidget.EXTRA_CARD_ID, 0), equalTo(shown.cardId))
+
+            WordReminderWidget.markKnown(targetContext, shown.cardId)
+
+            assertThat(col.findCards("is:suspended"), equalTo(listOf(shown.cardId)))
+            assertThat(WordReminderWorker.savedWords(), empty())
+            assertThat(notifications(), empty())
+        }
+
+    @Test
     fun `quiet hours across midnight`() {
         assertThat(WordReminderWorker.inQuietHours(23, 23, 7), equalTo(true))
         assertThat(WordReminderWorker.inQuietHours(3, 23, 7), equalTo(true))
@@ -267,6 +397,21 @@ class WordReminderWorkerTest : RobolectricTest() {
         return cids.single()
     }
 
+    /** Makes the card a due review card with an FSRS memory of [stability] days, last reviewed long ago */
+    private fun reviewCard(
+        cid: CardId,
+        stability: Float,
+    ) {
+        col.getCard(cid).update {
+            type = CardType.Rev
+            queue = QueueType.Rev
+            ivl = 10
+            due = col.sched.today - 1
+        }
+        // the memory state isn't settable from Card
+        col.db.execute("update cards set data = ? where id = ?", """{"s":$stability,"d":5.0,"lrt":1700000000}""", cid)
+    }
+
     /** Pretends the card was added [days] days ago (`added:` compares card ids). */
     private fun ageCard(
         cid: CardId,
@@ -280,12 +425,17 @@ class WordReminderWorkerTest : RobolectricTest() {
             .getCharSequence(Notification.EXTRA_TITLE)
             .toString()
 
-    private fun setHour(hour: Int) {
+    private fun setHour(
+        hour: Int,
+        minute: Int = 0,
+    ) {
         val millis =
             MockTime(2024, 0, 1, 0, 0, 0, 0, 0)
                 .calendar()
-                .apply { set(Calendar.HOUR_OF_DAY, hour) }
-                .timeInMillis
+                .apply {
+                    set(Calendar.HOUR_OF_DAY, hour)
+                    set(Calendar.MINUTE, minute)
+                }.timeInMillis
         TimeManager.resetWith(MockTime(initTime = millis, step = 0))
     }
 

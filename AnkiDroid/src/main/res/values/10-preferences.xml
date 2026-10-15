@@ -566,9 +566,9 @@ this formatter is used if the bind only applies to the answer">A: %s</string>
     <string name="pref_word_reminder_enabled" maxLength="41">Show word reminders</string>
     <string name="pref_word_reminder_decks" maxLength="41" comment="Decks to pick words from (several can be selected)">Decks</string>
     <string name="pref_word_reminder_interval" maxLength="41" comment="How often a word reminder is shown, in minutes">Remind every</string>
-    <string name="pref_word_reminder_quiet_start" maxLength="41" comment="Hour of the day when the quiet period (no reminders) starts">Quiet hours start</string>
-    <string name="pref_word_reminder_quiet_end" maxLength="41" comment="Hour of the day when the quiet period (no reminders) ends">Quiet hours end</string>
-    <string name="pref_word_reminder_quiet_summary">No reminders between these hours. Use the same hour for both to disable</string>
+    <string name="pref_word_reminder_quiet_start" maxLength="41" comment="Time of the day when the quiet period (no reminders) starts">Quiet hours start</string>
+    <string name="pref_word_reminder_quiet_end" maxLength="41" comment="Time of the day when the quiet period (no reminders) ends">Quiet hours end</string>
+    <string name="pref_word_reminder_quiet_summary">No reminders between these times. Use the same time for both to disable</string>
     <string name="pref_word_reminder_list_size" maxLength="41" comment="Number of words picked each time and shown one after another by the word reminder home screen widget">Words in the widget</string>
     <plurals name="pref_word_reminder_words">
         <item quantity="one">%d word</item>

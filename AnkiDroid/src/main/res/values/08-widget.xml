@@ -34,6 +34,8 @@
     <string name="word_reminder_widget_empty" comment="Shown in the Word reminder widget before it has words">Enable Settings › Word reminder to see your words here</string>
     <string name="word_reminder_widget_previous" comment="Accessibility label of the button showing the previous word">Previous word</string>
     <string name="word_reminder_widget_next" comment="Accessibility label of the button showing the next word">Next word</string>
+    <string name="word_reminder_speak" maxLength="28" comment="Accessibility label of the Word reminder widget button reading the word aloud">Read the word aloud</string>
+    <string name="word_reminder_known" maxLength="28" comment="Button of the Word reminder widget and notification: the user knows the word, so it is suspended and not reminded any more">I know this word</string>
 
     <!-- Strings to explain usage in Deck Picker and Card Analysis Widget Configuration screen -->
     <string name="select_decks_title" comment="Title for Deck Selection Dialog">Select decks</string>
