@@ -46,12 +46,12 @@
             android:src="@drawable/ic_volume_up" />
 
         <ImageButton
-            android:id="@+id/word_reminder_known"
+            android:id="@+id/word_reminder_remembered"
             android:layout_width="32dp"
             android:layout_height="32dp"
             android:layout_marginStart="4dp"
             android:background="@android:color/transparent"
-            android:contentDescription="@string/word_reminder_known"
+            android:contentDescription="@string/word_reminder_remembered"
             android:src="@drawable/ic_done" />
     </LinearLayout>
 

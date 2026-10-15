@@ -58,7 +58,7 @@ class WordReminderWorker(
             withCol {
                 val dids = deckNames.mapNotNull { decks.idForName(it) }
                 if (dids.isEmpty()) return@withCol emptyList()
-                // suspended cards are the words marked as known
+                // suspended cards are the words not to remind
                 val inDecks = dids.joinToString(" OR ", "(", ")") { "did:$it" } + " -is:suspended"
                 // due cards most likely forgotten first (lowest FSRS retrievability), the others at random
                 val byRetrievability = SortOrder.BuiltinColumnSortKind(getBrowserColumn("retrievability")!!, reverse = false)
@@ -194,8 +194,8 @@ class WordReminderWorker(
                     .setOnlyAlertOnce(true) // "Next word" replaces it silently
                     .addAction(
                         R.drawable.ic_done,
-                        context.getString(R.string.word_reminder_known),
-                        WordReminderWidget.knownIntent(context, cardId),
+                        context.getString(R.string.word_reminder_remembered),
+                        WordReminderWidget.rememberedIntent(context, cardId),
                     )
             if (words.size > 1) {
                 val next =
@@ -252,6 +252,6 @@ data class SavedWord(
     val deckId: DeckId,
     val title: String,
     val body: String,
-    /** 0 in lists saved before words could be marked as known */
+    /** 0 in lists saved before words could be marked as remembered */
     val cardId: CardId = 0,
 )

@@ -317,7 +317,7 @@ class WordReminderWorkerTest : RobolectricTest() {
         }
 
     @Test
-    fun `the notification and the widget mark a word as known`() =
+    fun `the notification and the widget answer a word Good`() =
         runTest {
             addWord("apple", "quả táo")
             addWord("pear", "quả lê")
@@ -329,17 +329,20 @@ class WordReminderWorkerTest : RobolectricTest() {
 
             val action = notifications().single().actions.single()
             val intent = shadowOf(action.actionIntent).savedIntent
-            assertThat(intent.action, equalTo(WordReminderWidget.ACTION_KNOWN))
+            assertThat(intent.action, equalTo(WordReminderWidget.ACTION_REMEMBERED))
             assertThat(intent.getLongExtra(WordReminderWidget.EXTRA_CARD_ID, 0), equalTo(shown.cardId))
             // the widget has the same button on each word
             val views = WordReminderWidget.buildViews(targetContext).apply(targetContext, null)
-            views.findViewById<View>(R.id.word_reminder_known).performClick()
+            views.findViewById<View>(R.id.word_reminder_remembered).performClick()
             val clicked = shadowOf(targetContext as Application).broadcastIntents.last()
             assertThat(clicked.getLongExtra(WordReminderWidget.EXTRA_CARD_ID, 0), equalTo(shown.cardId))
 
-            WordReminderWidget.markKnown(targetContext, shown.cardId)
+            WordReminderWidget.markRemembered(targetContext, shown.cardId)
 
-            assertThat(col.findCards("is:suspended"), equalTo(listOf(shown.cardId)))
+            // answered Good like in the reviewer: next learning step, a review log, not suspended
+            assertThat(col.findCards("is:suspended"), empty())
+            assertThat(col.getCard(shown.cardId).queue, equalTo(QueueType.Lrn))
+            assertThat(col.db.queryScalar("select count() from revlog where cid = ?", shown.cardId), equalTo(1))
             assertThat(WordReminderWorker.savedWords(), empty())
             assertThat(notifications(), empty())
         }

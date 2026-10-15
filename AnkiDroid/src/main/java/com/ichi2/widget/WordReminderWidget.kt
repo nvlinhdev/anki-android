@@ -17,6 +17,7 @@ import androidx.core.app.PendingIntentCompat
 import androidx.core.content.getSystemService
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
+import anki.scheduler.CardAnswer.Rating
 import com.ichi2.anki.CollectionManager.withCol
 import com.ichi2.anki.IntentHandler
 import com.ichi2.anki.R
@@ -47,11 +48,11 @@ class WordReminderWidget : AnalyticsWidgetProvider() {
         intent: Intent,
     ) {
         super.onReceive(context, intent)
-        if (intent.action == ACTION_KNOWN) {
+        if (intent.action == ACTION_REMEMBERED) {
             val pendingResult = goAsync()
             applicationScope.launch {
                 try {
-                    markKnown(context, intent.getLongExtra(EXTRA_CARD_ID, 0))
+                    markRemembered(context, intent.getLongExtra(EXTRA_CARD_ID, 0))
                 } finally {
                     pendingResult?.finish()
                 }
@@ -82,7 +83,7 @@ class WordReminderWidget : AnalyticsWidgetProvider() {
     companion object {
         const val ACTION_PREVIOUS = "com.ichi2.widget.WordReminderWidget.PREVIOUS"
         const val ACTION_NEXT = "com.ichi2.widget.WordReminderWidget.NEXT"
-        const val ACTION_KNOWN = "com.ichi2.widget.WordReminderWidget.KNOWN"
+        const val ACTION_REMEMBERED = "com.ichi2.widget.WordReminderWidget.REMEMBERED"
         const val EXTRA_CARD_ID = "cardId"
         const val ACTION_SPEAK = "com.ichi2.widget.WordReminderWidget.SPEAK"
         const val EXTRA_WORD = "word"
@@ -119,12 +120,18 @@ class WordReminderWidget : AnalyticsWidgetProvider() {
                 }
         }
 
-        /** Suspends the card of a word the user knows, so it isn't reminded any more, and removes it from the list */
-        suspend fun markKnown(
+        /**
+         * Answers the card of a word the user remembers Good, as the reviewer does: it moves to its next
+         * learning step or a longer interval (an early review if it isn't due). Removes it from the list
+         */
+        suspend fun markRemembered(
             context: Context,
             cardId: CardId,
         ) {
-            withCol { sched.suspendCards(listOf(cardId)) }
+            withCol {
+                val card = getCard(cardId).apply { startTimer() }
+                sched.answerCard(sched.buildAnswer(card, backend.getSchedulingStates(cardId), Rating.GOOD))
+            }
             WordReminderWorker.removeWord(cardId)
             context.getSystemService<NotificationManager>()?.cancel(NotificationId.WORD_REMINDER)
             if (updateAll(context) && WordReminderWorker.savedWords().isEmpty()) {
@@ -133,14 +140,14 @@ class WordReminderWidget : AnalyticsWidgetProvider() {
             }
         }
 
-        /** Marks the word of [cardId] as known; one request code per card, as the intents only differ by their extras */
-        fun knownIntent(
+        /** Marks the word of [cardId] as remembered; one request code per card, as the intents only differ by their extras */
+        fun rememberedIntent(
             context: Context,
             cardId: CardId,
         ) = PendingIntentCompat.getBroadcast(
             context,
             cardId.toInt(),
-            Intent(context, WordReminderWidget::class.java).setAction(ACTION_KNOWN).putExtra(EXTRA_CARD_ID, cardId),
+            Intent(context, WordReminderWidget::class.java).setAction(ACTION_REMEMBERED).putExtra(EXTRA_CARD_ID, cardId),
             PendingIntent.FLAG_UPDATE_CURRENT,
             false,
         )
@@ -190,7 +197,7 @@ class WordReminderWidget : AnalyticsWidgetProvider() {
                 item.setTextViewText(R.id.word_reminder_body, body)
                 item.setTextViewText(R.id.word_reminder_counter, "${i + 1}/${words.size}")
                 item.setOnClickPendingIntent(R.id.word_reminder_item, review)
-                item.setOnClickPendingIntent(R.id.word_reminder_known, knownIntent(context, word.cardId))
+                item.setOnClickPendingIntent(R.id.word_reminder_remembered, rememberedIntent(context, word.cardId))
                 val speak = Intent(context, WordReminderWidget::class.java).setAction(ACTION_SPEAK)
                 // the title is the word and its IPA
                 speak.putExtra(EXTRA_WORD, title.substringBefore(" /"))
