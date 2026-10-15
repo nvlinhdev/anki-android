@@ -13,8 +13,12 @@ import android.widget.TextView
 import android.widget.ViewFlipper
 import androidx.core.content.getSystemService
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.ListenableWorker.Result
+import androidx.work.PeriodicWorkRequestBuilder
+import androidx.work.WorkManager
 import androidx.work.testing.TestListenableWorkerBuilder
+import androidx.work.testing.WorkManagerTestInitHelper
 import com.ichi2.anki.R
 import com.ichi2.anki.RobolectricTest
 import com.ichi2.anki.common.time.MockTime
@@ -34,6 +38,7 @@ import org.junit.runner.RunWith
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.shadows.ShadowTextToSpeech
 import java.util.Calendar
+import java.util.concurrent.TimeUnit
 
 @RunWith(AndroidJUnit4::class)
 class WordReminderWorkerTest : RobolectricTest() {
@@ -152,6 +157,60 @@ class WordReminderWorkerTest : RobolectricTest() {
             assertThat(notifications(), empty())
             assertThat(WordReminderWorker.savedWords().map { it.title }, equalTo(listOf("apple")))
         }
+
+    @Test
+    fun `a notification with the widget if the user wants both`() =
+        runTest {
+            addWord("apple", "quả táo")
+            Prefs.wordReminderEnabled = true
+            Prefs.wordReminderNotifyWithWidget = true
+            setHour(12)
+            shadowOf(
+                AppWidgetManager.getInstance(targetContext),
+            ).createWidget(WordReminderWidget::class.java, R.layout.widget_word_reminder)
+
+            runWorker()
+
+            assertThat(notifications().map { it.extras.getCharSequence(Notification.EXTRA_TITLE).toString() }, equalTo(listOf("apple")))
+        }
+
+    @Test
+    fun `reminders every few minutes, under the 15 minutes of periodic work`() =
+        runTest {
+            Prefs.wordReminderEnabled = true
+            Prefs.wordReminderIntervalMinutes = 5
+            // the periodic work of older versions is replaced
+            WorkManager.getInstance(targetContext).enqueueUniquePeriodicWork(
+                UniqueWorkNames.WORD_REMINDER,
+                ExistingPeriodicWorkPolicy.KEEP,
+                PeriodicWorkRequestBuilder<WordReminderWorker>(15, TimeUnit.MINUTES).build(),
+            )
+
+            WordReminderWorker.schedule(targetContext)
+            val first = pendingRuns().single()
+            assertThat(first.initialDelayMillis, equalTo(5 * 60_000L))
+            assertThat(first.periodicityInfo, equalTo(null))
+
+            // each run of the chain enqueues the next one
+            WorkManagerTestInitHelper.getTestDriver(targetContext)!!.setInitialDelayMet(first.id)
+            val next = pendingRuns().single()
+            assertThat(next.id == first.id, equalTo(false))
+            assertThat(next.initialDelayMillis, equalTo(5 * 60_000L))
+            // a run out of the chain (the widget's last word was remembered) doesn't add another chain
+            runWorker()
+            assertThat(pendingRuns(), hasSize(1))
+
+            Prefs.wordReminderEnabled = false
+            WordReminderWorker.schedule(targetContext)
+            assertThat(pendingRuns(), empty())
+        }
+
+    private fun pendingRuns() =
+        WorkManager
+            .getInstance(targetContext)
+            .getWorkInfosForUniqueWork(UniqueWorkNames.WORD_REMINDER)
+            .get()
+            .filter { !it.state.isFinished }
 
     @Test
     fun `the widget buttons switch words, also after the words are updated`() =

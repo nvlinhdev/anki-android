@@ -281,7 +281,7 @@ open class PrefsRepository protected constructor(
             sharedPrefs.getStringSet(key(R.string.pref_word_reminder_decks_key), null)
                 ?: setOf(getString(R.string.pref_word_reminder_deck_key, null) ?: "GoldenDict")
         set(value) = sharedPrefs.edit { putStringSet(key(R.string.pref_word_reminder_decks_key), value) }
-    val wordReminderIntervalMinutes by intPref(R.string.pref_word_reminder_interval_key, 30)
+    var wordReminderIntervalMinutes by intPref(R.string.pref_word_reminder_interval_key, 30)
     var wordReminderQuietStartHour by intPref(R.string.pref_word_reminder_quiet_start_key, 23)
     var wordReminderQuietStartMinute by intPref(R.string.pref_word_reminder_quiet_start_minute_key, 0)
     var wordReminderQuietEndHour by intPref(R.string.pref_word_reminder_quiet_end_key, 7)
@@ -290,6 +290,9 @@ open class PrefsRepository protected constructor(
     /** Number of words picked each time, shown by the word reminder widget */
     var wordReminderListSize by intPref(R.string.pref_word_reminder_list_size_key, 5)
     val wordReminderSlideSeconds by intPref(R.string.pref_word_reminder_slide_seconds_key, 15)
+
+    /** Show the notification even if a word reminder widget shows the words */
+    var wordReminderNotifyWithWidget by booleanPref(R.string.pref_word_reminder_notify_with_widget_key, false)
 
     /** Comma-separated ids of the cards of the current word reminder list */
     var wordReminderRecentCardIds by stringPref(R.string.pref_word_reminder_recent_key)

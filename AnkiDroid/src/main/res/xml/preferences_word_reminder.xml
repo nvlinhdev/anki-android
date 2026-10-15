@@ -17,7 +17,7 @@
         android:key="@string/pref_word_reminder_interval_key"
         android:title="@string/pref_word_reminder_interval"
         app:max="1440"
-        app:min="15"
+        app:min="1"
         app:summaryFormat="@plurals/pref_summ_minutes" />
     <com.ichi2.preferences.IncrementerNumberRangePreferenceCompat
         android:defaultValue="5"
@@ -33,6 +33,11 @@
         app:max="60"
         app:min="2"
         app:summaryFormat="@plurals/pref_summ_seconds" />
+    <SwitchPreferenceCompat
+        android:defaultValue="false"
+        android:key="@string/pref_word_reminder_notify_with_widget_key"
+        android:title="@string/pref_word_reminder_notify_with_widget"
+        android:summary="@string/pref_word_reminder_notify_with_widget_summary" />
     <PreferenceCategory
         android:title="@string/pref_word_reminder_quiet_summary">
         <!-- open a time picker, set by WordReminderSettingsFragment -->

@@ -10,8 +10,8 @@ import androidx.core.app.NotificationCompat
 import androidx.core.app.PendingIntentCompat
 import androidx.core.content.getSystemService
 import androidx.work.CoroutineWorker
-import androidx.work.ExistingPeriodicWorkPolicy
-import androidx.work.PeriodicWorkRequestBuilder
+import androidx.work.ExistingWorkPolicy
+import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import com.ichi2.anki.CollectionManager.withCol
@@ -35,9 +35,9 @@ import java.util.Calendar
 import java.util.concurrent.TimeUnit
 
 /**
- * Periodically picks [Prefs.wordReminderListSize] words from [Prefs.wordReminderDecks] for the
- * [WordReminderWidget], and shows the first one as a notification, outside the quiet hours,
- * if there is no widget.
+ * Every [Prefs.wordReminderIntervalMinutes] picks [Prefs.wordReminderListSize] words from [Prefs.wordReminderDecks]
+ * for the [WordReminderWidget], and shows the first one as a notification, outside the quiet hours,
+ * if there is no widget (or [Prefs.wordReminderNotifyWithWidget]).
  * Random cards are picked from the due cards, then from the cards added in the last [RECENT_DAYS] days,
  * then from the whole deck. Cards of the previous list come last, the first one at the end.
  * Words show a [summarize]d meaning; the card keeps the whole article.
@@ -48,6 +48,8 @@ class WordReminderWorker(
 ) : CoroutineWorker(context, parameters) {
     override suspend fun doWork(): Result {
         if (!Prefs.wordReminderEnabled) return Result.success()
+        // first, so that the chain goes on whatever happens next
+        if (CHAIN_TAG in tags) enqueueRun(applicationContext, ExistingWorkPolicy.APPEND_OR_REPLACE)
         val deckNames = Prefs.wordReminderDecks
         val previous =
             Prefs.wordReminderRecentCardIds
@@ -84,7 +86,7 @@ class WordReminderWorker(
         Prefs.wordReminderRecentCardIds = words.joinToString(",") { it.first.toString() }
         saveWords(words.map { it.second })
         // the widget already shows the words
-        if (WordReminderWidget.updateAll(applicationContext)) return Result.success()
+        if (WordReminderWidget.updateAll(applicationContext) && !Prefs.wordReminderNotifyWithWidget) return Result.success()
 
         val now = TimeManager.time.calendar().let { it.get(Calendar.HOUR_OF_DAY) * 60 + it.get(Calendar.MINUTE) }
         val quietStart = Prefs.wordReminderQuietStartHour * 60 + Prefs.wordReminderQuietStartMinute
@@ -232,17 +234,36 @@ class WordReminderWorker(
             else -> time >= start || time < end
         }
 
-        /** Applies the current preferences: (re)schedules the periodic work, or cancels it. */
+        /** Tag of the runs of the reminder chain, each one enqueues the next */
+        const val CHAIN_TAG = "wordReminderChain"
+
+        /**
+         * Applies the current preferences: (re)starts the chain of reminders, or cancels it.
+         * Also replaces the periodic work of older versions.
+         */
         fun schedule(context: Context) {
-            val workManager = WorkManager.getInstance(context)
             if (!Prefs.wordReminderEnabled) {
-                workManager.cancelUniqueWork(UniqueWorkNames.WORD_REMINDER)
+                WorkManager.getInstance(context).cancelUniqueWork(UniqueWorkNames.WORD_REMINDER)
                 return
             }
-            // 15 minutes is the minimum interval allowed by WorkManager
-            val minutes = Prefs.wordReminderIntervalMinutes.coerceAtLeast(15).toLong()
-            val request = PeriodicWorkRequestBuilder<WordReminderWorker>(minutes, TimeUnit.MINUTES).build()
-            workManager.enqueueUniquePeriodicWork(UniqueWorkNames.WORD_REMINDER, ExistingPeriodicWorkPolicy.UPDATE, request)
+            enqueueRun(context, ExistingWorkPolicy.REPLACE)
+        }
+
+        /**
+         * Runs the worker in [Prefs.wordReminderIntervalMinutes]: a chain of one-time works, as periodic work
+         * can't run more often than every 15 minutes. From a run of the chain, [ExistingWorkPolicy.APPEND_OR_REPLACE]
+         * waits for it to end, rather than cancelling it
+         */
+        private fun enqueueRun(
+            context: Context,
+            policy: ExistingWorkPolicy,
+        ) {
+            val request =
+                OneTimeWorkRequestBuilder<WordReminderWorker>()
+                    .setInitialDelay(Prefs.wordReminderIntervalMinutes.toLong(), TimeUnit.MINUTES)
+                    .addTag(CHAIN_TAG)
+                    .build()
+            WorkManager.getInstance(context).enqueueUniqueWork(UniqueWorkNames.WORD_REMINDER, policy, request)
         }
     }
 }

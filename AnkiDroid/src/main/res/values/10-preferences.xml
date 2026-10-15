@@ -575,4 +575,6 @@ this formatter is used if the bind only applies to the answer">A: %s</string>
         <item quantity="other">%d words</item>
     </plurals>
     <string name="pref_word_reminder_slide_seconds" maxLength="41" comment="How long the word reminder widget shows a word before showing the next one">Widget: next word after</string>
+    <string name="pref_word_reminder_notify_with_widget" maxLength="41" comment="Switch: also show the word reminder notification when the word reminder home screen widget is placed">Notify even with the widget</string>
+    <string name="pref_word_reminder_notify_with_widget_summary">Without it, the home screen widget replaces the notifications</string>
 </resources>
